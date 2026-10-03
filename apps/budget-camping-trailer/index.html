@@ -198,9 +198,10 @@ const D = {
   axleZ: 1010, wheelR: 273, wheelW: 155, wheelX: 655,
   runnerH: 30,                         // rails under the sliding floor
   slide: { len: 1920, w: 1035, thk: 18, travel: 800, frontGap: 20 },  // frontGap = space to front wall; rest is left at the door for the handle
-  kitchen: { len: 1200, w: 450, h: 600 },  // left
-  fridge:  { len: 800,  w: 550, h: 600 },  // right
+  kitchen: { len: 1200, w: 450, h: 500 },  // left
+  fridge:  { len: 800,  w: 550, h: 500 },  // right
   tank: { w: 700, d: 350, h: 500 },        // front of sliding floor, centred
+  tent: { len: 1600, w: 1200, h: 400 },    // roof top tent, closed, centred on the lid rails
 };
 const hw = D.inW / 2, topY = D.floorY + D.inH, outHW = hw + D.wall;
 const FT = D.floorY + D.runnerH + D.slide.thk;   // top of sliding floor
@@ -261,13 +262,14 @@ defPart('fenders', 'Fenders', '#cfd5d8', '');
 defPart('body', 'Body walls', '#b7d2ea', 'steel sides, front');
 defPart('tfloor', 'Trailer floor', '#e4cfa8', '9 mm plywood');
 defPart('lid', 'Roof lid', '#9dbedb', 'front hinge, 25°');
+defPart('tent', 'Roof top tent', '#d9c7e8', '1600 × 1200 × 400 · closed');
 defPart('struts', 'Gas struts', '#7b848a', '2 per side, A-frame');
 defPart('door', 'Rear door', '#c5dbf0', 'right hinge');
 defPart('legs', 'Support legs', '#8e9ba3', '4 × telescopic, on side walls');
 defPart('runners', 'Slide runners', '#c2c8cd', 'fixed to trailer floor');
 defPart('slider', 'Sliding floor', '#f1d59c', '1920 × 1035 · travel 800');
-defPart('kitchen', 'Kitchen drawer', '#b3dfc2', '1200 × 450 × 600 · left');
-defPart('fridge', 'Fridge drawer', '#f2bdbd', '800 × 550 × 600 · right');
+defPart('kitchen', 'Kitchen drawer', '#b3dfc2', '1200 × 450 × 500 · left');
+defPart('fridge', 'Fridge drawer', '#f2bdbd', '800 × 550 × 500 · right');
 defPart('tank', 'Water tank', '#a3daee', '700 × 350 × 500 · ≈122 L');
 
 // ---------- Chassis, wheels, fenders ----------
@@ -301,13 +303,20 @@ const lidLen = D.inL + 2 * D.wall + 20;
 box('lid', lidPivot, -outHW - 10, outHW + 10, 0, D.lidThk, -lidLen, 0);
 for (const s of [1, -1]) box('lid', lidPivot, s * 380 - 20, s * 380 + 20, D.lidThk, D.lidThk + 30, -lidLen + 120, -120, { color: '#3b4146' });
 
+// roof top tent sits on the lid rails and moves with the lid
+{
+  const tw = D.tent.w / 2, tz1 = -lidLen / 2 + D.tent.len / 2, tz0 = tz1 - D.tent.len, ty = D.lidThk + 30;
+  box('tent', lidPivot, -tw, tw, ty, ty + 60, tz0, tz1, { color: shade('#d9c7e8', 0.8) });   // base shell
+  box('tent', lidPivot, -tw + 10, tw - 10, ty + 60, ty + D.tent.h, tz0 + 10, tz1 - 10);      // cover
+}
+
 // gas struts: 2 per side on the inside of the side walls, lower ends 50 mm below the top,
 // upper ends close together on the lid, so each pair forms an A when the lid is open.
 // Each strut = thick cylinder (body) from the wall end + thin rod from the lid end; the rod slides out of the body.
 const struts = [];
 const strutX = hw - 14, strutY = topY - 50;
 for (const s of [1, -1]) {
-  for (const [zLow, upZ] of [[800, -840], [1700, -760]]) {
+  for (const [zLow, upZ] of [[950, -690], [1850, -610]]) {
     struts.push({
       lower: new THREE.Vector3(s * strutX, strutY, zLow),
       upperLocal: new THREE.Vector3(s * strutX, -15, upZ),
