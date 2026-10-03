@@ -625,6 +625,71 @@ for (const n of Object.keys(VIEWS)) {
 }
 setView('rear');
 
+// ---------- Slovenian UI when the browser's preferred language is Slovenian ----------
+const SL_TEXT = {
+  'Budget Camping Trailer Build': 'Prikolica za kampiranje',
+  'TPV KT-EU2 · inner 2020 × 1075 × 675 mm': 'TPV KT-EU2 · notranjost 2020 × 1075 × 675 mm',
+  'Movement': 'Premikanje',
+  'Sliding floor': 'Izvlečno dno',
+  'Kitchen drawer': 'Kuhinjski predal',
+  'Fridge drawer': 'Predal za hladilnik',
+  'Roof open': 'Streha odprta',
+  'Door open': 'Vrata odprta',
+  'Support legs down': 'Podporne noge spuščene',
+  'Kitchen': 'Kuhinja',
+  'Side drawer': 'Stranski predal',
+  'Cutting board': 'Deska za rezanje',
+  'Bottle drawer': 'Predal za steklenice',
+  'Front table': 'Sprednja mizica',
+  'Parts': 'Deli',
+  'Show all': 'Prikaži vse',
+  'Solid all': 'Vse polno',
+  'Wire': 'Mreža',
+  'Show': 'Prikaz',
+  'Drag to orbit · scroll to zoom · right-drag to pan': 'Povleci za vrtenje · kolešček za povečavo · desni gumb za premik',
+  'Rear ¾': 'Zadaj ¾',
+  'Side': 'Bok',
+  'Top': 'Zgoraj',
+  'Back': 'Zadaj',
+  'Chassis & wheels': 'Podvozje in kolesa',
+  'frame, drawbar, axle, 13 in wheels, fenders': 'okvir, ojnica, os, 13" kolesa, blatniki',
+  'Body walls': 'Stene karoserije',
+  'steel sides, front': 'jeklene stranice, sprednja stena',
+  'Trailer floor': 'Dno prikolice',
+  '9 mm plywood': '9 mm vezana plošča',
+  'Roof lid': 'Pokrov',
+  'front hinge, 25°': 'tečaj spredaj, 25°',
+  'Roof top tent': 'Strešni šotor',
+  '1600 × 1200 × 400 · closed': '1600 × 1200 × 400 · zaprt',
+  'Gas struts': 'Plinske vzmeti',
+  '2 per side, A-frame': '2 na stran, v obliki črke A',
+  'Rear door': 'Zadnja vrata',
+  'right hinge': 'tečaj desno',
+  'Support legs': 'Podporne noge',
+  '4 × telescopic, on side walls': '4 × teleskopske, na stranskih stenah',
+  'Slide runners': 'Vodila dna',
+  'fixed to trailer floor': 'pritrjena na dno prikolice',
+  '1920 × 1035 · travel 800': '1920 × 1035 · hod 800',
+  '1200 × 415 × 550 · stove 700, bottles 200, box 300 · left': '1200 × 415 × 550 · kuhalnik 700, steklenice 200, škatla 300 · levo',
+  'Camping stove': 'Kuhalnik',
+  '2-burner · 550 × 300': '2 gorilnika · 550 × 300',
+  'Fridge slide': 'Izvlek za hladilnik',
+  'tray + chest fridge · 800 × 550 × 550 · right': 'pladenj + prenosni hladilnik · 800 × 550 × 550 · desno',
+  'Drawer slides': 'Vodila predalov',
+  'full-extension, 19 mm · kitchen side-mounted, fridge under tray': 'polni izvlek, 19 mm · kuhinja ob straneh, hladilnik pod pladnjem',
+  'Water system': 'Vodni sistem',
+  'tank, pump & plumbing · 1035 × 250 × 550': 'rezervoar, črpalka in napeljava · 1035 × 250 × 550',
+};
+if ((navigator.languages?.[0] || navigator.language || '').toLowerCase().startsWith('sl')) {
+  document.documentElement.lang = 'sl';
+  document.title = document.title.replace('Budget Camping Trailer Build', SL_TEXT['Budget Camping Trailer Build']);
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const key = n.nodeValue.trim();
+    if (SL_TEXT[key]) n.nodeValue = n.nodeValue.replace(key, SL_TEXT[key]);
+  }
+}
+
 // theme
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
