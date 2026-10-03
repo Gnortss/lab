@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Budget Camping Trailer Build · lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: workshop control rail on the left, full-bleed 3D bay on the right; rail becomes a bottom sheet on phones */
+:root {
+  --bg: #eceff0;
+  --panel: #f9fbfb;
+  --ink: #1e292c;
+  --muted: #5c6b70;
+  --line: #d3dbdd;
+  --accent: #2e7a6a;
+  --accent-ink: #ffffff;
+  --scene: #e3e8ea;
+  --grid-a: #b6c0c4;
+  --grid-b: #cfd7da;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #131819; --panel: #1a2123; --ink: #e2eaeb; --muted: #93a3a7; --line: #2c3639;
+    --accent: #72c4af; --accent-ink: #0f1a17; --scene: #182022; --grid-a: #3a474b; --grid-b: #263033;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #131819; --panel: #1a2123; --ink: #e2eaeb; --muted: #93a3a7; --line: #2c3639;
+  --accent: #72c4af; --accent-ink: #0f1a17; --scene: #182022; --grid-a: #3a474b; --grid-b: #263033;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px;
+  overflow: hidden;
+}
+.app { display: grid; grid-template-columns: 340px 1fr; height: 100%; }
+.rail {
+  background: var(--panel); border-right: 1px solid var(--line);
+  overflow-y: auto; padding: 18px 16px 24px; display: flex; flex-direction: column; gap: 22px;
+}
+.bay { position: relative; min-width: 0; min-height: 0; background: var(--scene); }
+.bay canvas { display: block; width: 100%; height: 100%; }
+
+.back { color: var(--muted); font-family: var(--f-mono); font-size: 11.5px; text-decoration: none; }
+.back:hover { color: var(--accent); }
+header h1 {
+  font-family: var(--f-display); font-weight: 600; font-size: 22px; letter-spacing: .01em;
+  margin: 0; text-wrap: balance;
+}
+header p { margin: 4px 0 0; color: var(--muted); font-family: var(--f-mono); font-size: 11.5px; }
+
+section h2 {
+  font-family: var(--f-display); font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--muted); margin: 0 0 10px;
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.stack { display: flex; flex-direction: column; gap: 14px; }
+
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: baseline; }
+.slider label { font-weight: 500; }
+.slider output { font-family: var(--f-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 0; }
+
+.toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.switch.wide { grid-column: 1 / -1; }
+.switch {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-weight: 500;
+}
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch .knob { width: 30px; height: 17px; border-radius: 9px; background: var(--line); position: relative; flex: none; transition: background .15s; }
+.switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--panel); transition: transform .15s; }
+.switch:has(input:checked) .knob { background: var(--accent); }
+.switch:has(input:checked) .knob::after { transform: translateX(13px); }
+.switch:has(input:focus-visible), .chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.parts { display: flex; flex-direction: column; }
+.part {
+  display: grid; grid-template-columns: 12px 1fr auto auto; gap: 8px; align-items: center;
+  padding: 7px 0; border-top: 1px solid var(--line);
+}
+.part:last-child { border-bottom: 1px solid var(--line); }
+.sw { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+.nm { min-width: 0; line-height: 1.25; }
+.nm small { display: block; color: var(--muted); font-family: var(--f-mono); font-size: 10.5px; }
+.part.off .nm { color: var(--muted); }
+.chip {
+  font-family: var(--f-display); font-weight: 500; font-size: 12px; letter-spacing: .04em;
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; user-select: none;
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.chip input { position: absolute; opacity: 0; pointer-events: none; }
+.chip:has(input:checked) { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.bulk { display: flex; gap: 6px; }
+.bulk button, .viewbtns button {
+  font: 500 12px var(--f-display); letter-spacing: .04em; color: var(--ink);
+  background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; cursor: pointer;
+}
+.bulk button:hover, .viewbtns button:hover { border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.hud {
+  position: absolute; left: 12px; right: 12px; bottom: 10px; display: flex; flex-wrap: wrap;
+  justify-content: space-between; gap: 8px; pointer-events: none; align-items: flex-end;
+}
+.hud .tip { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.viewbtns { display: flex; gap: 6px; flex-wrap: wrap; pointer-events: auto; }
+.viewbtns button { background: var(--panel); }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 46%); }
+  .bay { grid-row: 1; }
+  .rail { grid-row: 2; border-right: 0; border-top: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch .knob, .switch .knob::after { transition: none; }
+}
+</style>
+<style>body { margin: 0; } *, *::before, *::after { box-sizing: border-box; }</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <header>
+      <a class="back" href="/">← lab</a>
+      <h1>Budget Camping Trailer Build</h1>
+      <p>TPV KT-EU2 · inner 2020 × 1075 × 675 mm</p>
+    </header>
+
+    <section>
+      <h2>Movement</h2>
+      <div class="stack">
+        <div class="slider">
+          <label for="s-floor">Sliding floor</label><output id="o-floor">0 / 800 mm</output>
+          <input type="range" id="s-floor" min="0" max="800" step="10" value="0">
+        </div>
+        <div class="slider">
+          <label for="s-kitchen">Kitchen drawer</label><output id="o-kitchen">0 / 1200 mm</output>
+          <input type="range" id="s-kitchen" min="0" max="1200" step="10" value="0">
+        </div>
+        <div class="slider">
+          <label for="s-fridge">Fridge drawer</label><output id="o-fridge">0 / 800 mm</output>
+          <input type="range" id="s-fridge" min="0" max="800" step="10" value="0">
+        </div>
+        <div class="toggles">
+          <label class="switch">Roof open<input type="checkbox" id="t-roof" checked><span class="knob"></span></label>
+          <label class="switch">Door open<input type="checkbox" id="t-door" checked><span class="knob"></span></label>
+          <label class="switch wide">Support legs down<input type="checkbox" id="t-legs" checked><span class="knob"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Parts
+        <span class="bulk">
+          <button type="button" id="b-allshow">Show all</button>
+          <button type="button" id="b-nowire">Solid all</button>
+        </span>
+      </h2>
+      <div class="parts" id="parts"></div>
+    </section>
+  </aside>
+
+  <main class="bay" id="bay">
+    <div class="hud">
+      <span class="tip">Drag to orbit · scroll to zoom · right-drag to pan</span>
+      <span class="viewbtns">
+        <button type="button" id="v-rear">Rear ¾</button>
+        <button type="button" id="v-side">Side</button>
+        <button type="button" id="v-top">Top</button>
+        <button type="button" id="v-back">Back</button>
+      </span>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ---------- Dimensions (mm). Edit here. ----------
+// Axes: x = left(+)/right(-) in driving direction, y = up, z = forward. z = 0 is the rear opening.
+const D = {
+  inL: 2020, inW: 1075, inH: 675,      // KT-EU2 inner box
+  wall: 18,                            // visual wall thickness
+  floorY: 520,                         // loading height (top of trailer floor)
+  lidThk: 90, lidOpenDeg: 25,
+  doorThk: 25, doorOpenDeg: 210,
+  axleZ: 1010, wheelR: 273, wheelW: 155, wheelX: 655,
+  runnerH: 30,                         // rails under the sliding floor
+  slide: { len: 1920, w: 1035, thk: 18, travel: 800, frontGap: 20 },  // frontGap = space to front wall; rest is left at the door for the handle
+  kitchen: { len: 1200, w: 450, h: 600 },  // left
+  fridge:  { len: 800,  w: 550, h: 600 },  // right
+  tank: { w: 700, d: 350, h: 500 },        // front of sliding floor, centred
+};
+const hw = D.inW / 2, topY = D.floorY + D.inH, outHW = hw + D.wall;
+const FT = D.floorY + D.runnerH + D.slide.thk;   // top of sliding floor
+const slideZ0 = D.inL - D.slide.frontGap - D.slide.len;  // rear edge of sliding floor when pushed in
+
+// ---------- Scene ----------
+const bay = document.getElementById('bay');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+bay.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 10, 60000);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.495;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa4a8, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.55); sun.position.set(2500, 4000, -3000); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffffff, 0.25); fill.position.set(-3000, 2000, 3000); scene.add(fill);
+
+// ---------- Part registry ----------
+const parts = {}, order = [];
+function defPart(key, name, color, note) {
+  parts[key] = { key, name, note, color: new THREE.Color(color), meshes: [], mats: [], edges: [], cache: {}, wire: false, show: true };
+  order.push(key);
+}
+function mats(p, hex, side) {
+  const k = (hex || 'base') + (side ? 'd' : '');
+  if (!p.cache[k]) {
+    const c = hex ? new THREE.Color(hex) : p.color;
+    const m = new THREE.MeshLambertMaterial({ color: c, side: side || THREE.FrontSide });
+    const e = new THREE.LineBasicMaterial({ color: c.clone().multiplyScalar(0.55), transparent: true });
+    e.userData.base = c;
+    p.mats.push(m); p.edges.push(e); p.cache[k] = [m, e];
+  }
+  return p.cache[k];
+}
+function addMesh(key, geo, parent, pos, o = {}) {
+  const p = parts[key];
+  const [m, e] = mats(p, o.color, o.side);
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.position.set(pos[0], pos[1], pos[2]);
+  if (o.rotY) mesh.rotation.y = o.rotY;
+  if (!o.noEdges) mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, o.thresh || 1), e));
+  parent.add(mesh); p.meshes.push(mesh);
+  return mesh;
+}
+// Box from extents
+function box(key, parent, x0, x1, y0, y1, z0, z1, o) {
+  return addMesh(key, new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), parent,
+    [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], o);
+}
+const shade = (hex, f) => '#' + new THREE.Color(hex).multiplyScalar(f).getHexString();
+
+defPart('chassis', 'Chassis & drawbar', '#9aa5ad', 'frame, axle, coupler');
+defPart('wheels', 'Wheels', '#4c5357', '13 in');
+defPart('fenders', 'Fenders', '#cfd5d8', '');
+defPart('body', 'Body walls', '#b7d2ea', 'steel sides, front');
+defPart('tfloor', 'Trailer floor', '#e4cfa8', '9 mm plywood');
+defPart('lid', 'Roof lid', '#9dbedb', 'front hinge, 25°');
+defPart('struts', 'Gas struts', '#7b848a', '2 per side, A-frame');
+defPart('door', 'Rear door', '#c5dbf0', 'right hinge');
+defPart('legs', 'Support legs', '#8e9ba3', '4 × telescopic, on side walls');
+defPart('runners', 'Slide runners', '#c2c8cd', 'fixed to trailer floor');
+defPart('slider', 'Sliding floor', '#f1d59c', '1920 × 1035 · travel 800');
+defPart('kitchen', 'Kitchen drawer', '#b3dfc2', '1200 × 450 × 600 · left');
+defPart('fridge', 'Fridge drawer', '#f2bdbd', '800 × 550 × 600 · right');
+defPart('tank', 'Water tank', '#a3daee', '700 × 350 × 500 · ≈122 L');
+
+// ---------- Chassis, wheels, fenders ----------
+for (const s of [1, -1]) {
+  box('chassis', scene, s * 350 - 30, s * 350 + 30, D.floorY - 80, D.floorY - 30, -40, D.inL + 40);
+  // drawbar arm: from (±350, inL+40) to (±40, 2850)
+  const ax = s * 350, az = D.inL + 40, bx = s * 40, bz = 2850;
+  const len = Math.hypot(bx - ax, bz - az);
+  addMesh('chassis', new THREE.BoxGeometry(60, 50, len), scene,
+    [(ax + bx) / 2, D.floorY - 55, (az + bz) / 2], { rotY: Math.atan2(bx - ax, bz - az) });
+  addMesh('wheels', new THREE.CylinderGeometry(D.wheelR, D.wheelR, D.wheelW, 36).rotateZ(Math.PI / 2),
+    scene, [s * D.wheelX, D.wheelR, D.axleZ], { thresh: 20 });
+  addMesh('fenders', new THREE.CylinderGeometry(305, 305, 205, 36, 1, true, 0, Math.PI).rotateZ(Math.PI / 2),
+    scene, [s * D.wheelX, D.wheelR, D.axleZ], { thresh: 20, side: THREE.DoubleSide });
+}
+box('chassis', scene, -D.wheelX, D.wheelX, D.wheelR - 25, D.wheelR + 25, D.axleZ - 25, D.axleZ + 25); // axle
+box('chassis', scene, -45, 45, D.floorY - 100, D.floorY - 20, 2850, 2960);                         // coupler
+
+// ---------- Body ----------
+const wallY0 = D.floorY - 30;
+box('body', scene, hw, outHW, wallY0, topY, 0, D.inL + D.wall);
+box('body', scene, -outHW, -hw, wallY0, topY, 0, D.inL + D.wall);
+box('body', scene, -hw, hw, wallY0, topY, D.inL, D.inL + D.wall);
+box('tfloor', scene, -hw, hw, wallY0, D.floorY, 0, D.inL);
+
+// ---------- Roof lid (pivot on front top edge) ----------
+const lidPivot = new THREE.Group();
+lidPivot.position.set(0, topY, D.inL + D.wall + 10);
+scene.add(lidPivot);
+const lidLen = D.inL + 2 * D.wall + 20;
+box('lid', lidPivot, -outHW - 10, outHW + 10, 0, D.lidThk, -lidLen, 0);
+for (const s of [1, -1]) box('lid', lidPivot, s * 380 - 20, s * 380 + 20, D.lidThk, D.lidThk + 30, -lidLen + 120, -120, { color: '#3b4146' });
+
+// gas struts: 2 per side on the inside of the side walls, lower ends 50 mm below the top,
+// upper ends close together on the lid, so each pair forms an A when the lid is open.
+// Each strut = thick cylinder (body) from the wall end + thin rod from the lid end; the rod slides out of the body.
+const struts = [];
+const strutX = hw - 14, strutY = topY - 50;
+for (const s of [1, -1]) {
+  for (const [zLow, upZ] of [[800, -840], [1700, -760]]) {
+    struts.push({
+      lower: new THREE.Vector3(s * strutX, strutY, zLow),
+      upperLocal: new THREE.Vector3(s * strutX, -15, upZ),
+      body: addMesh('struts', new THREE.CylinderGeometry(11, 11, 1, 14), scene, [0, 0, 0], { noEdges: true }),
+      rod: addMesh('struts', new THREE.CylinderGeometry(4, 4, 1, 10), scene, [0, 0, 0], { noEdges: true, color: '#c9d0d5' }),
+    });
+  }
+}
+const _up = new THREE.Vector3(0, 1, 0), _a = new THREE.Vector3(), _d = new THREE.Vector3();
+function strutVec(st) {   // vector lower -> upper at the current lid angle
+  lidPivot.updateMatrixWorld(true);
+  _a.copy(st.upperLocal); lidPivot.localToWorld(_a);
+  return _d.subVectors(_a, st.lower);
+}
+// size body and rod from the closed and open lengths
+for (const st of struts) {
+  lidPivot.rotation.x = 0;
+  const lMin = strutVec(st).length();
+  lidPivot.rotation.x = THREE.MathUtils.degToRad(D.lidOpenDeg);
+  const lMax = strutVec(st).length();
+  st.bodyLen = lMin - 30;
+  st.rodLen = lMax - st.bodyLen + 30;
+}
+lidPivot.rotation.x = 0;
+function updateStruts() {
+  for (const st of struts) {
+    const v = strutVec(st), len = v.length();
+    const dir = v.normalize();
+    st.body.quaternion.setFromUnitVectors(_up, dir);
+    st.rod.quaternion.copy(st.body.quaternion);
+    st.body.scale.set(1, st.bodyLen, 1);
+    st.rod.scale.set(1, st.rodLen, 1);
+    st.body.position.copy(st.lower).addScaledVector(dir, st.bodyLen / 2);
+    st.rod.position.copy(st.lower).addScaledVector(dir, len - st.rodLen / 2);
+  }
+}
+
+// ---------- Rear door (pivot on right rear edge) ----------
+const doorPivot = new THREE.Group();
+doorPivot.position.set(-outHW, wallY0, 0);
+scene.add(doorPivot);
+const doorW = 2 * outHW, doorH = topY - wallY0;
+box('door', doorPivot, 0, doorW, 0, doorH, -D.doorThk, 0);
+box('door', doorPivot, doorW - 90, doorW - 60, doorH / 2 - 70, doorH / 2 + 70, -D.doorThk - 25, -D.doorThk, { color: '#5b646a' });
+
+// ---------- Support legs: held by a clamp on the lower edge of the side walls, front and rear corners ----------
+// The leg slides straight up through its clamp. Down = foot on the ground.
+const legTravel = 460, legs = [];
+for (const s of [1, -1]) for (const z of [190, D.inL - 170]) {
+  const x = s * (outHW + 27);
+  box('legs', scene, x - 30, x + 30, wallY0, wallY0 + 110, z - 30, z + 30, { color: shade('#8e9ba3', 0.75) });   // clamp
+  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+  box('legs', g, -20, 20, 12, 620, -20, 20);         // leg
+  box('legs', g, -45, 45, 0, 12, -45, 45);           // foot pad
+  legs.push(g);
+}
+
+// ---------- Runners + sliding floor ----------
+for (const s of [1, -1]) box('runners', scene, s * 380 - 30, s * 380 + 30, D.floorY, D.floorY + D.runnerH, slideZ0, slideZ0 + D.slide.len);
+const floorG = new THREE.Group(); scene.add(floorG);
+const sw = D.slide.w / 2;
+box('slider', floorG, -sw, sw, D.floorY + D.runnerH, FT, 0, D.slide.len);
+box('slider', floorG, -110, 110, D.floorY + D.runnerH - 4, FT - 2, -30, 0, { color: '#5b646a' });   // pull handle on the floor edge
+
+// drawers: open-top box with front panel flush to floor's rear edge when closed
+function drawer(key, xc, dim, hex) {
+  const g = new THREE.Group(); g.position.x = xc; floorG.add(g);
+  const w = dim.w / 2, t = 15, y0 = FT + 6, y1 = y0 + dim.h, fp = 20;
+  box(key, g, -w, w, y0, y0 + t, fp, dim.len);
+  box(key, g, -w, -w + t, y0, y1, fp, dim.len);
+  box(key, g, w - t, w, y0, y1, fp, dim.len);
+  box(key, g, -w + t, w - t, y0, y1, dim.len - t, dim.len);
+  box(key, g, -w, w, y0, y1, 0, fp, { color: shade(hex, 0.88) });
+  box(key, g, -90, 90, y1 - 95, y1 - 75, -22, 0, { color: '#5b646a' });
+  return g;
+}
+const kitchenG = drawer('kitchen', sw - D.kitchen.w / 2, D.kitchen, '#b3dfc2');
+const fridgeG  = drawer('fridge', -sw + D.fridge.w / 2, D.fridge, '#f2bdbd');
+box('tank', floorG, -D.tank.w / 2, D.tank.w / 2, FT, FT + D.tank.h, D.slide.len - D.tank.d, D.slide.len);
+
+// ---------- Ground grid (theme aware) ----------
+let grid;
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function isDark() {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function applyTheme() {
+  scene.background = new THREE.Color(css('--scene'));
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); }
+  grid = new THREE.GridHelper(8000, 40, css('--grid-a'), css('--grid-b'));
+  grid.position.z = 1200; scene.add(grid);
+  order.forEach(k => styleEdges(parts[k]));
+}
+function styleEdges(p) {
+  const dark = isDark();
+  p.edges.forEach(e => {
+    const b = e.userData.base;
+    e.color.copy(b).multiplyScalar(p.wire ? (dark ? 1.15 : 0.5) : 0.55);
+    e.opacity = p.wire ? 0.95 : 0.7;
+  });
+}
+function applyPart(p) {
+  p.mats.forEach(m => {
+    m.transparent = p.wire; m.opacity = p.wire ? 0.07 : 1; m.depthWrite = !p.wire; m.needsUpdate = true;
+  });
+  p.meshes.forEach(m => { m.visible = p.show; });
+  styleEdges(p);
+}
+
+// ---------- State + controls ----------
+const S = { floor: 0, kitchen: 0, fridge: 0, roof: false, door: false, lidA: 0, doorA: 0, legs: true, legA: 0 };
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function bindSlider(id, key, max) {
+  const el = document.getElementById('s-' + id), out = document.getElementById('o-' + id);
+  const set = () => { S[key] = +el.value; out.textContent = el.value + ' / ' + max + ' mm'; applyPositions(); };
+  el.addEventListener('input', set); set();
+}
+function applyPositions() {
+  floorG.position.z = slideZ0 - S.floor;
+  kitchenG.position.z = -S.kitchen;
+  fridgeG.position.z = -S.fridge;
+}
+bindSlider('floor', 'floor', D.slide.travel);
+bindSlider('kitchen', 'kitchen', D.kitchen.len);
+bindSlider('fridge', 'fridge', D.fridge.len);
+const tRoof = document.getElementById('t-roof'), tDoor = document.getElementById('t-door');
+tRoof.addEventListener('change', () => { S.roof = tRoof.checked; });
+tDoor.addEventListener('change', () => { S.door = tDoor.checked; });
+S.roof = tRoof.checked; S.door = tDoor.checked;
+const tLegs = document.getElementById('t-legs');
+tLegs.addEventListener('change', () => { S.legs = tLegs.checked; });
+S.legs = tLegs.checked;
+S.lidA = S.roof ? D.lidOpenDeg : 0; S.doorA = S.door ? D.doorOpenDeg : 0;  // start in final pose, no opening animation
+S.legA = S.legs ? 0 : legTravel;
+
+// parts list
+const list = document.getElementById('parts');
+order.forEach(k => {
+  const p = parts[k];
+  const row = document.createElement('div');
+  row.className = 'part';
+  row.innerHTML =
+    `<span class="sw" style="background:#${p.color.getHexString()}"></span>` +
+    `<span class="nm">${p.name}${p.note ? `<small>${p.note}</small>` : ''}</span>` +
+    `<label class="chip">Wire<input type="checkbox" id="w-${k}"></label>` +
+    `<label class="chip">Show<input type="checkbox" id="v-${k}" checked></label>`;
+  list.appendChild(row);
+  const w = row.querySelector('#w-' + k), v = row.querySelector('#v-' + k);
+  const sync = () => { p.wire = w.checked; p.show = v.checked; row.classList.toggle('off', !p.show); applyPart(p); };
+  w.addEventListener('change', sync); v.addEventListener('change', sync); sync();
+});
+document.getElementById('b-allshow').addEventListener('click', () => order.forEach(k => {
+  const v = document.getElementById('v-' + k); if (!v.checked) { v.checked = true; v.dispatchEvent(new Event('change')); }
+}));
+document.getElementById('b-nowire').addEventListener('click', () => order.forEach(k => {
+  const w = document.getElementById('w-' + k); if (w.checked) { w.checked = false; w.dispatchEvent(new Event('change')); }
+}));
+
+// camera views
+const VIEWS = {
+  rear: { pos: [3000, 2300, -3300], tgt: [0, 750, 800] },
+  side: { pos: [5600, 1100, 1200], tgt: [0, 750, 1200] },
+  top:  { pos: [0, 6200, 1201], tgt: [0, 600, 1200] },
+  back: { pos: [0, 1100, -4600], tgt: [0, 800, 600] },
+};
+function setView(name) {
+  const v = VIEWS[name];
+  camera.position.set(...v.pos); controls.target.set(...v.tgt); controls.update();
+}
+for (const n of Object.keys(VIEWS)) {
+  const b = document.getElementById('v-' + n); if (b) b.addEventListener('click', () => setView(n));
+}
+setView('rear');
+
+// theme
+applyTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+// resize
+function resize() {
+  const w = bay.clientWidth, h = bay.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(bay); resize();
+
+// loop: animate lid + door toward their target angles
+const clock = new THREE.Clock();
+const approach = (cur, tgt, step) => Math.abs(tgt - cur) <= step ? tgt : cur + Math.sign(tgt - cur) * step;
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const lidT = S.roof ? D.lidOpenDeg : 0, doorT = S.door ? D.doorOpenDeg : 0;
+  S.lidA = reduced ? lidT : approach(S.lidA, lidT, 90 * dt);
+  S.doorA = reduced ? doorT : approach(S.doorA, doorT, 220 * dt);
+  lidPivot.rotation.x = THREE.MathUtils.degToRad(S.lidA);
+  doorPivot.rotation.y = THREE.MathUtils.degToRad(S.doorA);
+  const legT = S.legs ? 0 : legTravel;
+  S.legA = reduced ? legT : approach(S.legA, legT, 600 * dt);
+  legs.forEach(g => { g.position.y = S.legA; });
+  updateStruts();
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>
