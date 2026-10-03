@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sliding Floor Forces · lab</title>
+  <style>
+    :root {
+      --bg: #0b0d10; --panel: #15181d; --line: #272c34; --fg: #e8ecf1; --muted: #8a94a3;
+      --red: #ff3b5c; --green: #2bff88; --accent: #4cc9ff;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+      font: 16px/1.4 system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { display: flex; flex-direction: column; height: 100dvh; }
+
+    .viz { flex: 0 0 50dvh; position: relative; border-bottom: 1px solid var(--line);
+      padding-top: env(safe-area-inset-top); }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    .controls { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 12px 16px calc(32px + env(safe-area-inset-bottom)); }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    .top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+    .top a { color: var(--muted); text-decoration: none; font-size: 14px; }
+    .top h1 { margin: 0; font-size: 15px; font-weight: 600; color: var(--muted); }
+    .detail, .warn { overflow-wrap: anywhere; }
+
+    .results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .res { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+    .res .k { font-size: 13px; color: var(--muted); }
+    .res b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+    .res small { display: block; color: var(--muted); font-size: 13px; }
+    .res.pull b, .res.pull .dir { color: var(--red); }
+    .res.push b, .res.push .dir { color: var(--green); }
+    .dir { display: block; font-weight: 700; font-size: 12px; letter-spacing: .03em; }
+    .detail { margin: 8px 2px 0; font-size: 13px; color: var(--muted); }
+    .warn { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: #3a1119; color: var(--red); font-weight: 600; }
+
+    h3 { margin: 22px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+    .ctrl { padding: 10px 0 6px; border-bottom: 1px solid var(--line); }
+    .ctrl .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .ctrl label { font-size: 15px; }
+    .num { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+    .num input { width: 96px; height: 44px; padding: 0 10px; font-size: 18px; font-weight: 600; text-align: right;
+      color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      font-variant-numeric: tabular-nums; }
+    .num input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+    input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 44px; margin: 4px 0 0;
+      background: transparent; touch-action: pan-y; }
+    input[type=range]::-webkit-slider-runnable-track { height: 12px; border-radius: 6px; background: var(--line); }
+    input[type=range]::-moz-range-track { height: 12px; border-radius: 6px; background: var(--line); }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 32px; height: 32px; margin-top: -10px;
+      border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 2px var(--accent); }
+    input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--accent);
+      border: 3px solid var(--bg); box-shadow: 0 0 0 2px var(--accent); }
+    .ctrl.primary input[type=range]::-webkit-slider-runnable-track { height: 16px; border-radius: 8px; }
+    .ctrl.primary input[type=range]::-webkit-slider-thumb { width: 40px; height: 40px; margin-top: -12px; }
+  </style>
+</head>
+<body>
+  <div class="viz"><canvas id="c"></canvas></div>
+
+  <div class="controls">
+    <div class="wrap">
+      <div class="top"><a href="/">← lab</a><h1>Sliding Floor Forces</h1></div>
+      <div class="results">
+        <div class="res" id="resBack"><div class="k">Back block</div><b></b><span class="dir"></span> <small></small></div>
+        <div class="res" id="resFront"><div class="k">Front block (pivot)</div><b></b><span class="dir"></span> <small></small></div>
+      </div>
+      <p class="warn" id="warn" hidden>Back block must be left of the front block.</p>
+      <p class="detail" id="detail"></p>
+      <div id="groups"></div>
+    </div>
+  </div>
+
+  <script>
+    const G = 9.81;
+    const VERT_W = 300; // vertical weight always spans x = 0..300
+
+    // Drawer's leftmost position: its right edge flush with the floor's right edge.
+    // The horizontal weight fills the fixed gap VERT_W..drawerMin().
+    const drawerMin = () => Math.max(VERT_W, P.floorLen - P.drawerLen);
+
+    const P = {
+      drawerLeft: 800,
+      floorW: 50, drawerW: 200, vertW: 70, horizW: 50,
+      floorLen: 2000, drawerLen: 1200,
+      backPos: 200, frontPos: 1200,
+    };
+
+    const CONTROLS = [
+      { group: 'Drawer position', items: [
+        { key: 'drawerLeft', label: 'Drawer left edge', unit: 'mm', min: drawerMin, max: () => P.floorLen, step: 1, primary: true },
+      ] },
+      { group: 'Weights', items: [
+        { key: 'floorW', label: 'Floor', unit: 'kg', min: 0, max: 500, step: 1 },
+        { key: 'drawerW', label: 'Drawer', unit: 'kg', min: 0, max: 1000, step: 1 },
+        { key: 'vertW', label: 'Vertical weight', unit: 'kg', min: 0, max: 500, step: 1 },
+        { key: 'horizW', label: 'Horizontal weight', unit: 'kg', min: 0, max: 500, step: 1 },
+      ] },
+      { group: 'Dimensions', items: [
+        { key: 'floorLen', label: 'Floor length', unit: 'mm', min: 500, max: 5000, step: 10 },
+        { key: 'drawerLen', label: 'Drawer length', unit: 'mm', min: 100, max: 4000, step: 10 },
+      ] },
+      { group: 'Block positions', items: [
+        { key: 'backPos', label: 'Back block', unit: 'mm', min: 0, max: () => P.floorLen, step: 5 },
+        { key: 'frontPos', label: 'Front block (pivot)', unit: 'mm', min: 0, max: () => P.floorLen, step: 5 },
+      ] },
+    ];
+
+    // ---------- physics ----------
+    function compute() {
+      const floorCom = P.floorLen / 2;
+      const drawerCom = P.drawerLeft + P.drawerLen / 2;
+      const vertCom = VERT_W / 2;
+      const horizCom = VERT_W + (drawerMin() - VERT_W) / 2;
+      const f = P.frontPos;
+
+      const totalMoment =
+        P.floorW * (floorCom - f) +
+        P.drawerW * (drawerCom - f) +
+        P.vertW * (vertCom - f) +
+        P.horizW * (horizCom - f);
+
+      const lever = f - P.backPos;
+      const totalW = P.floorW + P.drawerW + P.vertW + P.horizW;
+      const valid = lever > 0;
+      const forceBack = valid ? totalMoment / lever : NaN; // + = upward pull on back block
+      const forceFront = totalW + forceBack;                // + = downward load on pivot
+      const comX = totalW > 0 ? f + totalMoment / totalW : NaN; // combined center of mass
+      return { totalMoment, lever, totalW, valid, forceBack, forceFront, comX };
+    }
+
+    // ---------- controls ----------
+    const ctrls = {};
+    const groupsEl = document.getElementById('groups');
+    const val = (v) => (typeof v === 'function' ? v() : v);
+    const bounds = (c) => [val(c.min), val(c.max)];
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+    for (const g of CONTROLS) {
+      const h = document.createElement('h3');
+      h.textContent = g.group;
+      groupsEl.append(h);
+      for (const c of g.items) {
+        const row = document.createElement('div');
+        row.className = 'ctrl' + (c.primary ? ' primary' : '');
+        row.innerHTML =
+          `<div class="head"><label for="n-${c.key}">${c.label}</label>` +
+          `<span class="num"><input id="n-${c.key}" type="number" inputmode="decimal" step="${c.step}"><span>${c.unit}</span></span></div>` +
+          `<input type="range" step="${c.step}" aria-label="${c.label}">`;
+        const [num, range] = row.querySelectorAll('input');
+        ctrls[c.key] = { c, num, range };
+
+        range.addEventListener('input', () => { P[c.key] = +range.value; sync(); });
+        // While typing, apply only values already in range (so "1" on the way to "1500" doesn't clamp others).
+        num.addEventListener('input', () => {
+          const v = parseFloat(num.value), [lo, hi] = bounds(c);
+          if (Number.isFinite(v) && v >= lo && v <= hi) { P[c.key] = v; sync(num); }
+        });
+        num.addEventListener('change', () => {
+          const v = parseFloat(num.value);
+          if (Number.isFinite(v)) P[c.key] = clamp(v, ...bounds(c));
+          sync();
+        });
+        groupsEl.append(row);
+      }
+    }
+
+    function sync(skipNum) {
+      for (const k in ctrls) {
+        const { c, num, range } = ctrls[k];
+        const [lo, hi] = bounds(c);
+        P[k] = clamp(P[k], lo, hi);
+        range.min = lo; range.max = hi; range.value = P[k];
+        if (num !== skipNum) num.value = P[k];
+      }
+      schedule();
+    }
+
+    // ---------- results panel ----------
+    const fmt = (v, d = 1) => Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+    const EPS = 0.05;
+
+    // down = downward load on the block (+ push, - pull)
+    function setRes(el, down) {
+      const pull = down < -EPS, push = down > EPS;
+      el.className = 'res' + (pull ? ' pull' : push ? ' push' : '');
+      el.querySelector('b').textContent = `${fmt(down)} kg`;
+      el.querySelector('.dir').textContent = pull ? '↑ UPWARD PULL' : push ? '↓ DOWNWARD PUSH' : 'NO LOAD';
+      el.querySelector('small').textContent = `${fmt(down * G, 0)} N`;
+    }
+
+    function updateResults(r) {
+      document.getElementById('warn').hidden = r.valid;
+      document.querySelector('.results').style.opacity = r.valid ? 1 : 0.3;
+      if (r.valid) {
+        setRes(document.getElementById('resBack'), -r.forceBack);
+        setRes(document.getElementById('resFront'), r.forceFront);
+      }
+      const sign = r.totalMoment >= 0 ? '+' : '−';
+      document.getElementById('detail').textContent =
+        `Total load ${fmt(r.totalW)} kg · COM at ${fmt(r.comX, 0)} mm · Moment about pivot ${sign}${fmt(r.totalMoment / 1000, 2)} kg·m` +
+        (r.totalMoment > 0 ? ' (tipping forward)' : ' (resting back)') +
+        ` · Lever ${fmt(r.lever, 0)} mm`;
+    }
+
+    // ---------- canvas ----------
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    let W = 0, H = 0;
+
+    // heights in mm (only for drawing; drawer and vertical weight are drawerLen / 2)
+    const HT = { floor: 50, block: 80, horiz: 200 };
+    const BLOCK_W = 120;
+    const COL = { floor: '#9aa6b8', block: '#e8ecf1', vert: '#ffb84c', horiz: '#b57bff', drawer: '#4cc9ff',
+                  ground: '#3a414c', red: '#ff3b5c', green: '#2bff88', muted: '#8a94a3' };
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      W = rect.width; H = rect.height;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      schedule();
+    }
+    new ResizeObserver(resize).observe(canvas);
+
+    let pending = false;
+    function schedule() {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => { pending = false; const r = compute(); updateResults(r); draw(r); });
+    }
+
+    function draw(r) {
+      ctx.clearRect(0, 0, W, H);
+      if (!W || !H) return;
+
+      const PAD_X = 16, ARROW_AREA = 96;
+      const spanX = P.floorLen + P.drawerLen;  // drawer can extend this far at most
+      const tallH = P.drawerLen / 2;           // drawer and vertical weight height
+      const spanY = tallH + HT.floor + HT.block;
+      const s = Math.min((W - 2 * PAD_X) / spanX, (H - 24 - ARROW_AREA) / spanY);
+      const ox = PAD_X + (W - 2 * PAD_X - spanX * s) / 2;
+      const top = Math.max(30, (H - spanY * s - ARROW_AREA) / 2); // room for the COM label
+      const baseY = top + tallH * s;            // floor top surface
+      const X = (x) => ox + x * s;
+      // floor and blocks are thin at true scale, so keep them visible
+      const floorBot = baseY + Math.max(6, HT.floor * s);
+      const railY = floorBot + Math.max(14, HT.block * s);
+
+      // ground / rail
+      ctx.strokeStyle = COL.ground; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, railY); ctx.lineTo(W, railY); ctx.stroke();
+
+      // loads on the floor
+      const drawerX = P.drawerLeft;
+      box(0, VERT_W, tallH, COL.vert, `V ${P.vertW} kg`);
+      box(VERT_W, drawerMin(), HT.horiz, COL.horiz, `H ${P.horizW} kg`);
+      box(drawerX, drawerX + P.drawerLen, tallH, COL.drawer, `Drawer ${P.drawerW} kg`);
+
+      // floor
+      ctx.fillStyle = COL.floor;
+      ctx.fillRect(X(0), baseY, P.floorLen * s, floorBot - baseY);
+
+      // blocks
+      for (const [pos, name] of [[P.backPos, 'back'], [P.frontPos, 'front']]) {
+        ctx.fillStyle = COL.block;
+        ctx.fillRect(X(pos - BLOCK_W / 2), floorBot, BLOCK_W * s, railY - floorBot);
+        if (name === 'front') { // pivot marker
+          ctx.fillStyle = COL.muted;
+          ctx.beginPath(); ctx.arc(X(pos), (floorBot + railY) / 2, Math.max(3, 12 * s), 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      if (Number.isFinite(r.comX)) drawCom(X(r.comX), r.comX, top, railY, (baseY + top) / 2, r.comX > P.frontPos);
+
+      if (!r.valid) {
+        ctx.fillStyle = COL.red; ctx.font = '700 15px system-ui, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('Back block must be left of front block', W / 2, railY + 40);
+        return;
+      }
+      forceArrow(X(P.backPos), railY, -r.forceBack, 'BACK');
+      forceArrow(X(P.frontPos), railY, r.forceFront, 'FRONT');
+
+      function box(x0, x1, h, color, label) {
+        const w = (x1 - x0) * s, hp = h * s;
+        if (w <= 0.5) return;
+        ctx.fillStyle = color + '33';
+        ctx.strokeStyle = color; ctx.lineWidth = 2;
+        ctx.fillRect(X(x0), baseY - hp, w, hp);
+        ctx.strokeRect(X(x0) + 1, baseY - hp + 1, w - 2, hp - 2);
+        ctx.font = '700 12px system-ui, sans-serif';
+        ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(label).width, cx = X(x0) + w / 2, cy = baseY - hp / 2;
+        if (tw + 8 < w && hp > 16) {
+          ctx.fillText(label, cx, cy);
+        } else if (w > 16 && tw + 8 < hp) { // tall and narrow: write it vertically
+          ctx.save(); ctx.translate(cx, cy); ctx.rotate(-Math.PI / 2); ctx.fillText(label, 0, 0); ctx.restore();
+        }
+      }
+    }
+
+    // Combined center of mass: dashed line + quartered-circle symbol, red when past the pivot.
+    function drawCom(x, mm, y0, y1, ySym, tipping) {
+      const color = tipping ? COL.red : COL.green, R = 9;
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#0b0d10';
+      ctx.beginPath(); ctx.arc(x, ySym, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = color;
+      for (const a of [0, Math.PI]) {
+        ctx.beginPath(); ctx.moveTo(x, ySym); ctx.arc(x, ySym, R, a, a + Math.PI / 2); ctx.closePath(); ctx.fill();
+      }
+      ctx.lineWidth = 2; ctx.strokeStyle = color;
+      ctx.beginPath(); ctx.arc(x, ySym, R, 0, Math.PI * 2); ctx.stroke();
+      const label = `COM ${fmt(mm, 0)} mm`;
+      ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      const tw = ctx.measureText(label).width;
+      ctx.fillText(label, clamp(x, tw / 2 + 4, W - tw / 2 - 4), y0 - 6);
+      ctx.restore();
+    }
+
+    // down > 0: block pushed down (green, arrow down); down < 0: pulled up (red, arrow up)
+    function forceArrow(x, y0, down, name) {
+      const pull = down < -EPS, push = down > EPS;
+      const color = pull ? COL.red : push ? COL.green : COL.muted;
+      const yA = y0 + 8, yB = y0 + 50;
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      if (pull || push) {
+        const tip = push ? yB : yA, tail = push ? yA : yB, dir = push ? 1 : -1;
+        ctx.beginPath(); ctx.moveTo(x, tail); ctx.lineTo(x, tip - dir * 10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, tip); ctx.lineTo(x - 10, tip - dir * 14); ctx.lineTo(x + 10, tip - dir * 14); ctx.closePath(); ctx.fill();
+      }
+      const text = `${fmt(down)} kg`;
+      ctx.font = '800 16px system-ui, sans-serif';
+      const tw = Math.max(ctx.measureText(text).width, 60);
+      const tx = clamp(x, tw / 2 + 4, W - tw / 2 - 4);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(text, tx, yB + 6);
+      ctx.font = '700 11px system-ui, sans-serif';
+      ctx.fillText(`${name} · ${pull ? 'PULL ↑' : push ? 'PUSH ↓' : '—'}`, tx, yB + 26);
+    }
+
+    sync();
+  </script>
+</body>
+</html>
