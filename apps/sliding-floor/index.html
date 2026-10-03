@@ -58,6 +58,13 @@
       border: 3px solid var(--bg); box-shadow: 0 0 0 2px var(--accent); }
     .ctrl.primary input[type=range]::-webkit-slider-runnable-track { height: 16px; border-radius: 8px; }
     .ctrl.primary input[type=range]::-webkit-slider-thumb { width: 40px; height: 40px; margin-top: -12px; }
+
+    /* Wide screens (desktop, landscape phones/tablets): drawing left, controls in a right sidebar. */
+    @media (min-width: 900px), (orientation: landscape) and (min-width: 600px) {
+      body { flex-direction: row; }
+      .viz { flex: 1 1 auto; min-width: 0; height: 100dvh; border-bottom: 0; border-right: 1px solid var(--line); }
+      .controls { flex: 0 0 min(420px, 45vw); height: 100dvh; padding-top: max(12px, env(safe-area-inset-top)); }
+    }
   </style>
 </head>
 <body>
