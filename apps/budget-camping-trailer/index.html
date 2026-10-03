@@ -72,6 +72,7 @@ section h2 {
 
 .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .switch.wide { grid-column: 1 / -1; }
+.subhead { font-family: var(--f-display); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: -6px; }
 .switch {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-weight: 500;
@@ -157,6 +158,13 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
           <label class="switch">Door open<input type="checkbox" id="t-door" checked><span class="knob"></span></label>
           <label class="switch wide">Support legs down<input type="checkbox" id="t-legs" checked><span class="knob"></span></label>
         </div>
+        <div class="subhead">Kitchen</div>
+        <div class="toggles">
+          <label class="switch">Side drawer<input type="checkbox" id="t-stove"><span class="knob"></span></label>
+          <label class="switch">Cutting board<input type="checkbox" id="t-board"><span class="knob"></span></label>
+          <label class="switch">Bottle drawer<input type="checkbox" id="t-bottle"><span class="knob"></span></label>
+          <label class="switch">Front table<input type="checkbox" id="t-flap"><span class="knob"></span></label>
+        </div>
       </div>
     </section>
 
@@ -198,7 +206,10 @@ const D = {
   axleZ: 1010, wheelR: 273, wheelW: 155, wheelX: 655,
   runnerH: 30,                         // rails under the sliding floor
   slide: { len: 1920, w: 1035, thk: 18, travel: 800, frontGap: 20 },  // frontGap = space to front wall; rest is left at the door for the handle
-  kitchen: { len: 1200, w: 415, h: 550, hTall: 600, tallLen: 800 },  // outer 800 mm is taller  // left
+  kitchen: { len: 1200, w: 415, h: 550, stoveLen: 700, bottleLen: 200, bottleTravel: 320, stoveY: 930, drawerY: 110, drawerTravel: 300, boardTravel: 300, flapHingeY: 950, openSide: 1 },
+  // left. stoveY = stove standing surface above ground. drawerY = side drawer bottom above kitchen bottom (clears slides).
+  // flapHingeY = height above ground of the front table's hinge (= table height when open).
+  // openSide +1 = stove section and side drawer open towards the left wall
   fridge:  { len: 800,  w: 550, h: 550 },  // right
   slides: { thk: 19, h: 76, board: 15 },    // heavy-duty full-extension slides; kitchen ones sit on 15 mm mounting boards
   tank: { w: 1035, d: 250, h: 550 },       // water system (tank, pump, plumbing), full width at front of sliding floor
@@ -268,7 +279,8 @@ defPart('door', 'Rear door', '#c5dbf0', 'right hinge');
 defPart('legs', 'Support legs', '#8e9ba3', '4 × telescopic, on side walls');
 defPart('runners', 'Slide runners', '#c2c8cd', 'fixed to trailer floor');
 defPart('slider', 'Sliding floor', '#f1d59c', '1920 × 1035 · travel 800');
-defPart('kitchen', 'Kitchen drawer', '#b3dfc2', '1200 × 415 · 600 high (outer 800), 550 rest · left');
+defPart('kitchen', 'Kitchen drawer', '#b3dfc2', '1200 × 415 × 550 · stove 700, bottles 200, box 300 · left');
+defPart('stove', 'Camping stove', '#6b7378', '2-burner · 550 × 300');
 defPart('fridge', 'Fridge slide', '#f2bdbd', 'tray + chest fridge · 800 × 550 × 550 · right');
 defPart('slides', 'Drawer slides', '#aab4bb', 'full-extension, 19 mm · kitchen side-mounted, fridge under tray');
 defPart('tank', 'Water system', '#a3daee', 'tank, pump & plumbing · 1035 × 250 × 550');
@@ -385,23 +397,76 @@ box('slider', floorG, -110, 110, D.floorY + D.runnerH - 4, FT - 2, -30, 0, { col
 // Drawers: local z = 0 is the outer end, flush with the floor's rear edge when closed.
 const DARK = '#3a3f44', HANDLE = '#5b646a';
 
-// Kitchen: closed box, taller over the outer part (tallLen), with a shelf inside and one handle on the front.
+// Kitchen, three sections from the outer end:
+//  1) stove section (stoveLen): open at the top and on one side above the stove shelf.
+//     Stove surface at stoveY above ground. Below the shelf a drawer that slides out sideways,
+//     kept above the kitchen's own side slides and mounting boards.
+//  2) vertical bottle drawer (bottleLen), pulls out sideways
+//  3) closed box (rest of the length), contents undefined for now
+const cyl = (key, g, r, h, x, y, z, color) =>
+  addMesh(key, new THREE.CylinderGeometry(r, r, h, 28), g, [x, y, z], { thresh: 20, color });
+let stoveDrawerG, boardG, flapG, bottleG;
 function kitchenDrawer(xc, dim, hex) {
   const k = 'kitchen', g = new THREE.Group(); g.position.x = xc; floorG.add(g);
-  const w = dim.w / 2, t = 15, y0 = FT + 6, fp = 20, L = dim.len, TL = dim.tallLen;
-  const yHi = y0 + dim.hTall, yLo = y0 + dim.h;
-  box(k, g, -w, w, y0, y0 + t, fp, L);                        // bottom
-  for (const [x0, x1] of [[-w, -w + t], [w - t, w]]) {        // sides, stepped
-    box(k, g, x0, x1, y0, yHi - t, fp, TL);
-    box(k, g, x0, x1, y0, yLo - t, TL, L);
+  const w = dim.w / 2, t = 15, y0 = FT + 6, fp = 20, L = dim.len, SLn = dim.stoveLen;
+  const yLo = y0 + dim.h, ySh = dim.stoveY - t, o = dim.openSide;
+  const yDr = y0 + dim.drawerY;                                       // side drawer bottom
+  const yB = yDr - 20;   // drawer floor, just above the slides; below it the drawer is hollow (open bottom and inner end)
+  box(k, g, -o * w, -o * (w - t), y0, yLo, fp, SLn);                  // closed side, stove section
+  box(k, g, o * w, o * (w - t), y0, yDr - 5, fp, SLn);                // open side: below the side drawer only
+  const zB0 = SLn + t, zB1 = SLn + dim.bottleLen;                     // bottle drawer bay
+  box(k, g, -o * w, -o * (w - t), y0, yLo, SLn, L);                    // closed side, rear sections
+  box(k, g, o * w, o * (w - t), y0, yLo, SLn, zB0);                    // open side, beside the wall
+  box(k, g, o * w, o * (w - t), y0, yB + t, zB0, zB1);                 // open side under the bottle drawer
+  box(k, g, o * w, o * (w - t), y0, yLo, zB1, L);                      // open side, closed box
+  box(k, g, -w + t, w - t, yB + t, yLo - t, zB1, zB1 + t);             // wall between bottle drawer and box
+  box(k, g, -w + t, w - t, yB, yB + t, fp, L - t);                    // raised drawer floor
+  box(k, g, -w + t, w - t, ySh, ySh + t, fp, SLn);                    // stove shelf
+  box(k, g, -w + t, w - t, yB + t, yLo - t, SLn, SLn + t);            // wall between sections
+  box(k, g, -w + t, w - t, yB, yLo - t, L - t, L);                    // inner end
+  box(k, g, -w, w, yLo - t, yLo, SLn, L);                             // box lid
+  box(k, g, -w, w, y0, yLo, 0, fp, { color: shade(hex, 0.88) });       // front wall (also wind guard)
+  box(k, g, -80, 80, yLo - 75, yLo - 55, -22, 0, { color: HANDLE });   // main handle, above the table hinge
+
+  // front table: plywood on the front wall, hinged at flapHingeY, lifts 90° to a horizontal table
+  const hy = dim.flapHingeY, ft = 18;
+  flapG = new THREE.Group(); flapG.position.set(0, hy, 0); g.add(flapG);
+  box(k, flapG, -w, w, y0 + 2 - hy, 0, -ft, 0, { color: '#e4cfa8' });
+
+  // side drawer under the stove: its front panel is the open side's wall between yDr and the shelf
+  const d = new THREE.Group(); g.add(d); stoveDrawerG = d;
+  const dz0 = fp + 3, dz1 = SLn - 3, dTop = ySh - 45, dIn = -o * (w - t - 3);   // leaves a slot for the cutting board
+  box(k, d, o * w, o * (w - t), yDr, dTop, dz0, dz1, { color: shade(hex, 0.8) });   // drawer front
+  box(k, d, o * w, o * (w + 20), (yDr + dTop) / 2 - 10, (yDr + dTop) / 2 + 10, (dz0 + dz1) / 2 - 80, (dz0 + dz1) / 2 + 80, { color: HANDLE });
+  box(k, d, o * (w - t), dIn, yDr, yDr + 12, dz0 + 10, dz1 - 10);                   // bottom
+  box(k, d, dIn, dIn + o * 12, yDr, dTop - 10, dz0 + 10, dz1 - 10);                 // back
+  box(k, d, o * (w - t), dIn + o * 12, yDr, dTop - 10, dz0 + 10, dz0 + 22);         // ends
+  box(k, d, o * (w - t), dIn + o * 12, yDr, dTop - 10, dz1 - 22, dz1 - 10);
+
+  // cutting board in the slot between the side drawer and the stove shelf, slides out sideways
+  boardG = new THREE.Group(); g.add(boardG);
+  box(k, boardG, o * w, dIn, ySh - 30, ySh - 10, dz0 + 10, dz1 - 10, { color: '#e9d3a6' });
+  box(k, boardG, o * w, o * (w + 10), ySh - 25, ySh - 15, (dz0 + dz1) / 2 - 60, (dz0 + dz1) / 2 + 60, { color: HANDLE });   // finger pull
+
+  // vertical bottle drawer (oil, bottles): pulls out sideways from the open side
+  bottleG = new THREE.Group(); g.add(bottleG);
+  const bz0 = zB0 + 3, bz1 = zB1 - 3, by0 = yB + t + 2, by1 = yLo - t - 3, bIn = -o * (w - t - 3);
+  box(k, bottleG, o * w, o * (w - t), by0, by1, bz0, bz1, { color: shade(hex, 0.8) });   // front
+  box(k, bottleG, o * w, o * (w + 20), (by0 + by1) / 2 - 70, (by0 + by1) / 2 + 70, (bz0 + bz1) / 2 - 10, (bz0 + bz1) / 2 + 10, { color: HANDLE });
+  box(k, bottleG, o * (w - t), bIn, by0, by0 + 12, bz0, bz1);           // bottom
+  box(k, bottleG, bIn, bIn + o * 12, by0, by1, bz0, bz1);               // back
+  box(k, bottleG, o * (w - t), bIn + o * 12, by0 + 200, by0 + 212, bz0, bz1);   // shelf
+  for (const ry of [by0 + 90, by0 + 300])                               // bottle rails both sides
+    for (const rz of [bz0, bz1 - 10]) box(k, bottleG, o * (w - t), bIn + o * 12, ry, ry + 10, rz, rz + 10, { color: HANDLE });
+
+  // 2-burner camping stove on the shelf, knobs facing the open side
+  const sy = ySh + t, sh = 80, sz0 = (fp + SLn) / 2 - 275, sz1 = sz0 + 550;
+  box('stove', g, -150, 150, sy, sy + sh, sz0, sz1);
+  box('stove', g, -140, 140, sy + sh, sy + sh + 4, sz0 + 10, sz1 - 10, { color: '#2f3438' });   // grate
+  for (const bz of [sz0 + 145, sz0 + 405]) {
+    cyl('stove', g, 50, 8, 0, sy + sh + 6, bz, '#a3aab0');
+    box('stove', g, o * 150, o * 168, sy + 25, sy + 50, bz - 15, bz + 15, { color: '#2f3438' });   // knob
   }
-  box(k, g, -w + t, w - t, y0, yLo - t, L - t, L);            // inner end
-  box(k, g, -w + t, w - t, y0 + 300, y0 + 300 + t, fp, L - t); // shelf
-  box(k, g, -w, w, yHi - t, yHi, fp, TL);                     // top, tall part
-  box(k, g, -w, w, yLo - t, yLo, TL, L);                      // top, low part
-  box(k, g, -w, w, yLo, yHi - t, TL - t, TL);                 // step
-  box(k, g, -w, w, y0, yHi, 0, fp, { color: shade(hex, 0.88) });             // front panel
-  box(k, g, -80, 80, yHi - 95, yHi - 75, -22, 0, { color: HANDLE });
   return g;
 }
 
@@ -436,9 +501,9 @@ const kitchenMids = [], fridgeMids = [];
 function midGroup(list) { const g = new THREE.Group(); floorG.add(g); list.push(g); return g; }
 // side-mounted: xFace = drawer side face, dir = +1 if the board is on the +x side of it
 function sideSlide(xFace, dir, len, drawerG) {
-  const yc = FT + 6 + 75, h = SL.h / 2, mid = midGroup(kitchenMids), dx = drawerG.position.x;
+  const yc = FT + 6 + 50, h = SL.h / 2, mid = midGroup(kitchenMids), dx = drawerG.position.x;
   const xb = xFace + dir * SL.thk;                                   // board face
-  box('slides', floorG, xb + dir * SL.board, xb, FT, FT + 150, 0, len, { color: '#e4cfa8' });   // mounting board
+  box('slides', floorG, xb + dir * SL.board, xb, FT, FT + 100, 0, len, { color: '#e4cfa8' });   // mounting board
   box('slides', floorG, xb, xb - dir * 6, yc - h, yc + h, 0, len, { color: STEEL_O });
   box('slides', mid, xb - dir * 6, xb - dir * 12, yc - h + 6, yc + h - 6, 0, len, { color: STEEL_M });
   box('slides', drawerG, xb - dir * 12 - dx, xb - dir * 18 - dx, yc - h + 12, yc + h - 12, 0, len, { color: STEEL_I });
@@ -486,7 +551,7 @@ function applyPart(p) {
 }
 
 // ---------- State + controls ----------
-const S = { floor: 0, kitchen: 0, fridge: 0, roof: false, door: false, lidA: 0, doorA: 0, legs: true, legA: 0 };
+const S = { floor: 0, kitchen: 0, fridge: 0, roof: false, door: false, lidA: 0, doorA: 0, legs: true, legA: 0, stove: false, stoveA: 0, board: false, boardA: 0, flap: false, flapA: 0, bottle: false, bottleA: 0 };
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function bindSlider(id, key, max) {
   const el = document.getElementById('s-' + id), out = document.getElementById('o-' + id);
@@ -507,6 +572,14 @@ const tRoof = document.getElementById('t-roof'), tDoor = document.getElementById
 tRoof.addEventListener('change', () => { S.roof = tRoof.checked; });
 tDoor.addEventListener('change', () => { S.door = tDoor.checked; });
 S.roof = tRoof.checked; S.door = tDoor.checked;
+const tStove = document.getElementById('t-stove');
+tStove.addEventListener('change', () => { S.stove = tStove.checked; });
+S.stove = tStove.checked;
+for (const key of ['board', 'flap', 'bottle']) {
+  const el = document.getElementById('t-' + key);
+  el.addEventListener('change', () => { S[key] = el.checked; });
+  S[key] = el.checked;
+}
 const tLegs = document.getElementById('t-legs');
 tLegs.addEventListener('change', () => { S.legs = tLegs.checked; });
 S.legs = tLegs.checked;
@@ -577,6 +650,17 @@ function tick() {
   const legT = S.legs ? 0 : legTravel;
   S.legA = reduced ? legT : approach(S.legA, legT, 600 * dt);
   legs.forEach(g => { g.position.y = S.legA; });
+  const stoveT = S.stove ? D.kitchen.drawerTravel : 0;
+  S.stoveA = reduced ? stoveT : approach(S.stoveA, stoveT, 900 * dt);
+  stoveDrawerG.position.x = D.kitchen.openSide * S.stoveA;
+  const boardT = S.board ? D.kitchen.boardTravel : 0, flapT = S.flap ? 90 : 0;
+  S.boardA = reduced ? boardT : approach(S.boardA, boardT, 900 * dt);
+  S.flapA = reduced ? flapT : approach(S.flapA, flapT, 150 * dt);
+  boardG.position.x = D.kitchen.openSide * S.boardA;
+  flapG.rotation.x = THREE.MathUtils.degToRad(S.flapA);
+  const bottleT = S.bottle ? D.kitchen.bottleTravel : 0;
+  S.bottleA = reduced ? bottleT : approach(S.bottleA, bottleT, 900 * dt);
+  bottleG.position.x = D.kitchen.openSide * S.bottleA;
   updateStruts();
   controls.update();
   renderer.render(scene, camera);
