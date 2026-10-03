@@ -1,0 +1,5 @@
+{
+  "title": "Game of Life",
+  "description": "Conway's cellular automaton. Click to draw, space to pause.",
+  "tags": ["simulation", "canvas"]
+}

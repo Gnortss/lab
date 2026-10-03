@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game of Life · lab</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+    canvas { display: block; cursor: crosshair; }
+    a { position: fixed; top: .75rem; left: .75rem; color: #aaa; font: 14px system-ui, sans-serif; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <a href="/">← lab</a>
+  <script>
+    const SIZE = 8;
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    let cols, rows, grid, paused = false;
+
+    function resize() {
+      canvas.width = innerWidth;
+      canvas.height = innerHeight;
+      cols = Math.ceil(innerWidth / SIZE);
+      rows = Math.ceil(innerHeight / SIZE);
+      grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => Math.random() < 0.2));
+    }
+
+    function step() {
+      grid = grid.map((row, y) => row.map((alive, x) => {
+        let n = 0;
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++)
+            if ((dx || dy) && grid[(y + dy + rows) % rows][(x + dx + cols) % cols]) n++;
+        return n === 3 || (alive && n === 2);
+      }));
+    }
+
+    function draw() {
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#f08a4b';
+      for (let y = 0; y < rows; y++)
+        for (let x = 0; x < cols; x++)
+          if (grid[y][x]) ctx.fillRect(x * SIZE, y * SIZE, SIZE - 1, SIZE - 1);
+    }
+
+    function paint(e) {
+      const x = Math.floor(e.clientX / SIZE), y = Math.floor(e.clientY / SIZE);
+      if (grid[y] && x < cols) grid[y][x] = true;
+      draw();
+    }
+
+    canvas.addEventListener('pointerdown', (e) => { paint(e); canvas.onpointermove = paint; });
+    addEventListener('pointerup', () => { canvas.onpointermove = null; });
+    addEventListener('keydown', (e) => { if (e.code === 'Space') paused = !paused; });
+    addEventListener('resize', resize);
+
+    resize();
+    setInterval(() => { if (!paused) step(); draw(); }, 80);
+  </script>
+</body>
+</html>

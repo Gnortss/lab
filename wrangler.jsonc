@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lab",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist"
+  },
+  "routes": [{ "pattern": "lab.devsoup.xyz", "custom_domain": true }]
+}
