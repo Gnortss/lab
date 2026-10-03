@@ -198,9 +198,10 @@ const D = {
   axleZ: 1010, wheelR: 273, wheelW: 155, wheelX: 655,
   runnerH: 30,                         // rails under the sliding floor
   slide: { len: 1920, w: 1035, thk: 18, travel: 800, frontGap: 20 },  // frontGap = space to front wall; rest is left at the door for the handle
-  kitchen: { len: 1200, w: 450, h: 500 },  // left
-  fridge:  { len: 800,  w: 550, h: 500 },  // right
-  tank: { w: 700, d: 350, h: 500 },        // front of sliding floor, centred
+  kitchen: { len: 1200, w: 415, h: 550, hTall: 600, tallLen: 800 },  // outer 800 mm is taller  // left
+  fridge:  { len: 800,  w: 550, h: 550 },  // right
+  slides: { thk: 19, h: 76, board: 15 },    // heavy-duty full-extension slides; kitchen ones sit on 15 mm mounting boards
+  tank: { w: 1035, d: 250, h: 550 },       // water system (tank, pump, plumbing), full width at front of sliding floor
   tent: { len: 1600, w: 1200, h: 400 },    // roof top tent, closed, centred on the lid rails
 };
 const hw = D.inW / 2, topY = D.floorY + D.inH, outHW = hw + D.wall;
@@ -251,14 +252,13 @@ function addMesh(key, geo, parent, pos, o = {}) {
 }
 // Box from extents
 function box(key, parent, x0, x1, y0, y1, z0, z1, o) {
+  [x0, x1] = [Math.min(x0, x1), Math.max(x0, x1)];
   return addMesh(key, new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), parent,
     [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], o);
 }
 const shade = (hex, f) => '#' + new THREE.Color(hex).multiplyScalar(f).getHexString();
 
-defPart('chassis', 'Chassis & drawbar', '#9aa5ad', 'frame, axle, coupler');
-defPart('wheels', 'Wheels', '#4c5357', '13 in');
-defPart('fenders', 'Fenders', '#cfd5d8', '');
+defPart('chassis', 'Chassis & wheels', '#9aa5ad', 'frame, drawbar, axle, 13 in wheels, fenders');
 defPart('body', 'Body walls', '#b7d2ea', 'steel sides, front');
 defPart('tfloor', 'Trailer floor', '#e4cfa8', '9 mm plywood');
 defPart('lid', 'Roof lid', '#9dbedb', 'front hinge, 25°');
@@ -268,9 +268,10 @@ defPart('door', 'Rear door', '#c5dbf0', 'right hinge');
 defPart('legs', 'Support legs', '#8e9ba3', '4 × telescopic, on side walls');
 defPart('runners', 'Slide runners', '#c2c8cd', 'fixed to trailer floor');
 defPart('slider', 'Sliding floor', '#f1d59c', '1920 × 1035 · travel 800');
-defPart('kitchen', 'Kitchen drawer', '#b3dfc2', '1200 × 450 × 500 · left');
-defPart('fridge', 'Fridge drawer', '#f2bdbd', '800 × 550 × 500 · right');
-defPart('tank', 'Water tank', '#a3daee', '700 × 350 × 500 · ≈122 L');
+defPart('kitchen', 'Kitchen drawer', '#b3dfc2', '1200 × 415 · 600 high (outer 800), 550 rest · left');
+defPart('fridge', 'Fridge slide', '#f2bdbd', 'tray + chest fridge · 800 × 550 × 550 · right');
+defPart('slides', 'Drawer slides', '#aab4bb', 'full-extension, 19 mm · kitchen side-mounted, fridge under tray');
+defPart('tank', 'Water system', '#a3daee', 'tank, pump & plumbing · 1035 × 250 × 550');
 
 // ---------- Chassis, wheels, fenders ----------
 for (const s of [1, -1]) {
@@ -280,10 +281,10 @@ for (const s of [1, -1]) {
   const len = Math.hypot(bx - ax, bz - az);
   addMesh('chassis', new THREE.BoxGeometry(60, 50, len), scene,
     [(ax + bx) / 2, D.floorY - 55, (az + bz) / 2], { rotY: Math.atan2(bx - ax, bz - az) });
-  addMesh('wheels', new THREE.CylinderGeometry(D.wheelR, D.wheelR, D.wheelW, 36).rotateZ(Math.PI / 2),
-    scene, [s * D.wheelX, D.wheelR, D.axleZ], { thresh: 20 });
-  addMesh('fenders', new THREE.CylinderGeometry(305, 305, 205, 36, 1, true, 0, Math.PI).rotateZ(Math.PI / 2),
-    scene, [s * D.wheelX, D.wheelR, D.axleZ], { thresh: 20, side: THREE.DoubleSide });
+  addMesh('chassis', new THREE.CylinderGeometry(D.wheelR, D.wheelR, D.wheelW, 36).rotateZ(Math.PI / 2),
+    scene, [s * D.wheelX, D.wheelR, D.axleZ], { thresh: 20, color: '#4c5357' });
+  addMesh('chassis', new THREE.CylinderGeometry(305, 305, 205, 36, 1, true, 0, Math.PI).rotateZ(Math.PI / 2),
+    scene, [s * D.wheelX, D.wheelR, D.axleZ], { thresh: 20, side: THREE.DoubleSide, color: '#cfd5d8' });
 }
 box('chassis', scene, -D.wheelX, D.wheelX, D.wheelR - 25, D.wheelR + 25, D.axleZ - 25, D.axleZ + 25); // axle
 box('chassis', scene, -45, 45, D.floorY - 100, D.floorY - 20, 2850, 2960);                         // coupler
@@ -381,20 +382,77 @@ const sw = D.slide.w / 2;
 box('slider', floorG, -sw, sw, D.floorY + D.runnerH, FT, 0, D.slide.len);
 box('slider', floorG, -110, 110, D.floorY + D.runnerH - 4, FT - 2, -30, 0, { color: '#5b646a' });   // pull handle on the floor edge
 
-// drawers: open-top box with front panel flush to floor's rear edge when closed
-function drawer(key, xc, dim, hex) {
-  const g = new THREE.Group(); g.position.x = xc; floorG.add(g);
-  const w = dim.w / 2, t = 15, y0 = FT + 6, y1 = y0 + dim.h, fp = 20;
-  box(key, g, -w, w, y0, y0 + t, fp, dim.len);
-  box(key, g, -w, -w + t, y0, y1, fp, dim.len);
-  box(key, g, w - t, w, y0, y1, fp, dim.len);
-  box(key, g, -w + t, w - t, y0, y1, dim.len - t, dim.len);
-  box(key, g, -w, w, y0, y1, 0, fp, { color: shade(hex, 0.88) });
-  box(key, g, -90, 90, y1 - 95, y1 - 75, -22, 0, { color: '#5b646a' });
+// Drawers: local z = 0 is the outer end, flush with the floor's rear edge when closed.
+const DARK = '#3a3f44', HANDLE = '#5b646a';
+
+// Kitchen: closed box, taller over the outer part (tallLen), with a shelf inside and one handle on the front.
+function kitchenDrawer(xc, dim, hex) {
+  const k = 'kitchen', g = new THREE.Group(); g.position.x = xc; floorG.add(g);
+  const w = dim.w / 2, t = 15, y0 = FT + 6, fp = 20, L = dim.len, TL = dim.tallLen;
+  const yHi = y0 + dim.hTall, yLo = y0 + dim.h;
+  box(k, g, -w, w, y0, y0 + t, fp, L);                        // bottom
+  for (const [x0, x1] of [[-w, -w + t], [w - t, w]]) {        // sides, stepped
+    box(k, g, x0, x1, y0, yHi - t, fp, TL);
+    box(k, g, x0, x1, y0, yLo - t, TL, L);
+  }
+  box(k, g, -w + t, w - t, y0, yLo - t, L - t, L);            // inner end
+  box(k, g, -w + t, w - t, y0 + 300, y0 + 300 + t, fp, L - t); // shelf
+  box(k, g, -w, w, yHi - t, yHi, fp, TL);                     // top, tall part
+  box(k, g, -w, w, yLo - t, yLo, TL, L);                      // top, low part
+  box(k, g, -w, w, yLo, yHi - t, TL - t, TL);                 // step
+  box(k, g, -w, w, y0, yHi, 0, fp, { color: shade(hex, 0.88) });             // front panel
+  box(k, g, -80, 80, yHi - 95, yHi - 75, -22, 0, { color: HANDLE });
   return g;
 }
-const kitchenG = drawer('kitchen', sw - D.kitchen.w / 2, D.kitchen, '#b3dfc2');
-const fridgeG  = drawer('fridge', -sw + D.fridge.w / 2, D.fridge, '#f2bdbd');
+
+// Fridge slide: low tray with a lip, and a chest fridge (Dometic CFX-style, ~45 L) strapped on it.
+function fridgeSlide(xc, dim, hex) {
+  const k = 'fridge', g = new THREE.Group(); g.position.x = xc; floorG.add(g);
+  const w = dim.w / 2, y0 = FT + 20, L = dim.len, ty = y0 + 25;   // tray sits on flat-mounted slides
+  box(k, g, -w, w, y0, ty, 20, L);                           // tray
+  box(k, g, -w, -w + 12, ty, ty + 45, 20, L);                // lips
+  box(k, g, w - 12, w, ty, ty + 45, 20, L);
+  box(k, g, -w + 12, w - 12, ty, ty + 45, L - 12, L);
+  box(k, g, -w, w, y0, y0 + 110, 0, 20, { color: shade(hex, 0.85) });        // front plate
+  box(k, g, -90, 90, y0 + 60, y0 + 80, -22, 0, { color: HANDLE });
+  const fw = 240, fz0 = 50, fz1 = 750, fh = 400;
+  box(k, g, -fw, fw, ty, ty + fh, fz0, fz1, { color: '#f4ebe9' });            // fridge body
+  box(k, g, -fw + 5, fw - 5, ty + fh, ty + fh + 70, fz0 + 5, fz1 - 5, { color: '#d99c9c' });   // lid
+  box(k, g, -120, 120, ty + 250, ty + 340, fz0 - 12, fz0, { color: DARK });   // control panel
+  for (const sx of [fw, -fw - 10]) box(k, g, sx, sx + 10, ty + 300, ty + 330, 250, 550, { color: HANDLE });  // carry handles
+  return g;
+}
+
+// Layout across the sliding floor (left to right):
+// board | slide | kitchen | slide | board | gap | fridge slide (slides underneath)
+const SL = D.slides, kx1 = sw - SL.board - SL.thk, kx0 = kx1 - D.kitchen.w;
+const kitchenG = kitchenDrawer((kx0 + kx1) / 2, D.kitchen, '#b3dfc2');
+const fridgeG  = fridgeSlide(-sw + D.fridge.w / 2, D.fridge, '#f2bdbd');
+
+// ---------- Drawer slides ----------
+// 3-member telescopic slides: outer fixed, middle travels half, inner rides with the drawer.
+const STEEL_O = '#9aa5ad', STEEL_M = '#b9c2c8', STEEL_I = '#d3dadf';
+const kitchenMids = [], fridgeMids = [];
+function midGroup(list) { const g = new THREE.Group(); floorG.add(g); list.push(g); return g; }
+// side-mounted: xFace = drawer side face, dir = +1 if the board is on the +x side of it
+function sideSlide(xFace, dir, len, drawerG) {
+  const yc = FT + 6 + 75, h = SL.h / 2, mid = midGroup(kitchenMids), dx = drawerG.position.x;
+  const xb = xFace + dir * SL.thk;                                   // board face
+  box('slides', floorG, xb + dir * SL.board, xb, FT, FT + 150, 0, len, { color: '#e4cfa8' });   // mounting board
+  box('slides', floorG, xb, xb - dir * 6, yc - h, yc + h, 0, len, { color: STEEL_O });
+  box('slides', mid, xb - dir * 6, xb - dir * 12, yc - h + 6, yc + h - 6, 0, len, { color: STEEL_M });
+  box('slides', drawerG, xb - dir * 12 - dx, xb - dir * 18 - dx, yc - h + 12, yc + h - 12, 0, len, { color: STEEL_I });
+}
+sideSlide(kx1, 1, D.kitchen.len, kitchenG);
+sideSlide(kx0, -1, D.kitchen.len, kitchenG);
+// flat-mounted under the fridge tray
+function flatSlide(x, len, drawerG) {
+  const mid = midGroup(fridgeMids), dx = drawerG.position.x, h = SL.h / 2;
+  box('slides', floorG, x - h, x + h, FT, FT + 6, 0, len, { color: STEEL_O });
+  box('slides', mid, x - h + 5, x + h - 5, FT + 6, FT + 12, 0, len, { color: STEEL_M });
+  box('slides', drawerG, x - h + 10 - dx, x + h - 10 - dx, FT + 12, FT + 19, 0, len, { color: STEEL_I });
+}
+for (const off of [-1, 1]) flatSlide(fridgeG.position.x + off * (D.fridge.w / 2 - 70), D.fridge.len, fridgeG);
 box('tank', floorG, -D.tank.w / 2, D.tank.w / 2, FT, FT + D.tank.h, D.slide.len - D.tank.d, D.slide.len);
 
 // ---------- Ground grid (theme aware) ----------
@@ -439,6 +497,8 @@ function applyPositions() {
   floorG.position.z = slideZ0 - S.floor;
   kitchenG.position.z = -S.kitchen;
   fridgeG.position.z = -S.fridge;
+  kitchenMids.forEach(g => { g.position.z = -S.kitchen / 2; });
+  fridgeMids.forEach(g => { g.position.z = -S.fridge / 2; });
 }
 bindSlider('floor', 'floor', D.slide.travel);
 bindSlider('kitchen', 'kitchen', D.kitchen.len);
