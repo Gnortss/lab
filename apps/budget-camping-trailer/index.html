@@ -65,11 +65,6 @@ section h2 {
 }
 .stack { display: flex; flex-direction: column; gap: 14px; }
 
-.slider { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: baseline; }
-.slider label { font-weight: 500; }
-.slider output { font-family: var(--f-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 0; }
-
 .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .switch.wide { grid-column: 1 / -1; }
 .subhead { font-family: var(--f-display); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: -6px; }
@@ -152,19 +147,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     <section>
       <h2>Movement</h2>
       <div class="stack">
-        <div class="slider">
-          <label for="s-floor">Sliding floor</label><output id="o-floor">0 / 800 mm</output>
-          <input type="range" id="s-floor" min="0" max="800" step="10" value="0">
-        </div>
-        <div class="slider">
-          <label for="s-kitchen">Kitchen drawer</label><output id="o-kitchen">0 / 1200 mm</output>
-          <input type="range" id="s-kitchen" min="0" max="1200" step="10" value="0">
-        </div>
-        <div class="slider">
-          <label for="s-fridge">Fridge drawer</label><output id="o-fridge">0 / 800 mm</output>
-          <input type="range" id="s-fridge" min="0" max="800" step="10" value="0">
-        </div>
         <div class="toggles">
+          <label class="switch wide">Sliding floor<input type="checkbox" id="t-floor"><span class="knob"></span></label>
+          <label class="switch">Kitchen drawer<input type="checkbox" id="t-kitchen"><span class="knob"></span></label>
+          <label class="switch">Fridge drawer<input type="checkbox" id="t-fridge"><span class="knob"></span></label>
           <label class="switch">Roof open<input type="checkbox" id="t-roof" checked><span class="knob"></span></label>
           <label class="switch">Door open<input type="checkbox" id="t-door" checked><span class="knob"></span></label>
           <label class="switch wide">Support legs down<input type="checkbox" id="t-legs" checked><span class="knob"></span></label>
@@ -615,23 +601,15 @@ function applyPart(p) {
 }
 
 // ---------- State + controls ----------
-const S = { floor: 0, kitchen: 0, fridge: 0, roof: false, door: false, lidA: 0, doorA: 0, legs: true, legA: 0, stove: false, stoveA: 0, board: false, boardA: 0, flap: false, flapA: 0, bottle: false, bottleA: 0 };
+const S = { floor: false, floorA: 0, kitchen: false, kitchenA: 0, fridge: false, fridgeA: 0, roof: false, door: false, lidA: 0, doorA: 0, legs: true, legA: 0, stove: false, stoveA: 0, board: false, boardA: 0, flap: false, flapA: 0, bottle: false, bottleA: 0 };
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-function bindSlider(id, key, max) {
-  const el = document.getElementById('s-' + id), out = document.getElementById('o-' + id);
-  const set = () => { S[key] = +el.value; out.textContent = el.value + ' / ' + max + ' mm'; applyPositions(); };
-  el.addEventListener('input', set); set();
-}
 function applyPositions() {
-  floorG.position.z = slideZ0 - S.floor;
-  kitchenG.position.z = -S.kitchen;
-  fridgeG.position.z = -S.fridge;
-  kitchenMids.forEach(g => { g.position.z = -S.kitchen / 2; });
-  fridgeMids.forEach(g => { g.position.z = -S.fridge / 2; });
+  floorG.position.z = slideZ0 - S.floorA;
+  kitchenG.position.z = -S.kitchenA;
+  fridgeG.position.z = -S.fridgeA;
+  kitchenMids.forEach(g => { g.position.z = -S.kitchenA / 2; });
+  fridgeMids.forEach(g => { g.position.z = -S.fridgeA / 2; });
 }
-bindSlider('floor', 'floor', D.slide.travel);
-bindSlider('kitchen', 'kitchen', D.kitchen.len);
-bindSlider('fridge', 'fridge', D.fridge.len);
 const tRoof = document.getElementById('t-roof'), tDoor = document.getElementById('t-door');
 tRoof.addEventListener('change', () => { S.roof = tRoof.checked; });
 tDoor.addEventListener('change', () => { S.door = tDoor.checked; });
@@ -639,7 +617,7 @@ S.roof = tRoof.checked; S.door = tDoor.checked;
 const tStove = document.getElementById('t-stove');
 tStove.addEventListener('change', () => { S.stove = tStove.checked; });
 S.stove = tStove.checked;
-for (const key of ['board', 'flap', 'bottle']) {
+for (const key of ['floor', 'kitchen', 'fridge', 'board', 'flap', 'bottle']) {
   const el = document.getElementById('t-' + key);
   el.addEventListener('change', () => { S[key] = el.checked; });
   S[key] = el.checked;
@@ -647,8 +625,6 @@ for (const key of ['board', 'flap', 'bottle']) {
 const tLegs = document.getElementById('t-legs');
 tLegs.addEventListener('change', () => { S.legs = tLegs.checked; });
 S.legs = tLegs.checked;
-S.lidA = S.roof ? D.lidOpenDeg : 0; S.doorA = S.door ? D.doorOpenDeg : 0;  // start in final pose, no opening animation
-S.legA = S.legs ? 0 : legTravel;
 
 // parts list, grouped by build phase
 const PHASES = [
@@ -746,6 +722,52 @@ for (const n of Object.keys(VIEWS)) {
 }
 setView('rear');
 
+// ---------- Shareable state in the URL: #<phases><flipped checkboxes> in base64url, one char each ----------
+// <phases>: build phase × focus phase. <flipped>: checkboxes that differ from what the phases (parts) or the page (switches)
+// imply, by index in page order, so adding or reordering checkboxes changes what older links mean (max 64 checkboxes).
+const rail = document.querySelector('.rail');
+const boxes = [...rail.querySelectorAll('input[type=checkbox]')];
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const phaseOf = {};
+PHASES.forEach(([, , keys], i) => keys.forEach(k => { phaseOf[k] = i; }));
+function implied(el, built, focus) {
+  const k = el.id.slice(2);
+  if (el.id.startsWith('v-')) return phaseOf[k] <= built;
+  if (el.id.startsWith('w-')) return focus >= 0 && phaseOf[k] !== focus;
+  return el.defaultChecked;
+}
+function encodeState() {
+  const built = +pick.querySelector('input:checked').value, focus = +focusPick.querySelector('input:checked').value;
+  let s = B64[built * 5 + focus + 1];
+  boxes.forEach((el, i) => { if (el.checked !== implied(el, built, focus)) s += B64[i]; });
+  return s === B64[(PHASES.length - 1) * 5] ? '' : s;   // all defaults: no hash
+}
+function restoreState(hash) {
+  if (!/^[\w-]+$/.test(hash)) return;
+  const head = B64.indexOf(hash[0]), built = Math.floor(head / 5), focus = head % 5 - 1;
+  if (!(built >= 0 && built < PHASES.length)) return;
+  pick.querySelector(`input[value="${built}"]`).checked = true;
+  focusPick.querySelector(`input[value="${focus}"]`).checked = true;
+  // set checkboxes directly and apply them; the radios' handlers would overwrite the part checkboxes
+  const flipped = new Set([...hash.slice(1)].map(c => B64.indexOf(c)));
+  boxes.forEach((el, i) => {
+    el.checked = implied(el, built, focus) !== flipped.has(i);
+    el.dispatchEvent(new Event('change'));
+  });
+}
+if (location.hash.length > 1) restoreState(location.hash.slice(1));
+addEventListener('hashchange', () => restoreState(location.hash.slice(1)));
+let saveTimer;
+const queueSave = () => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const s = encodeState();
+    history.replaceState(null, '', location.pathname + location.search + (s ? '#' + s : ''));
+  }, 250);
+};
+rail.addEventListener('change', queueSave);
+rail.addEventListener('click', queueSave);
+
 // ---------- Slovenian UI when the browser's preferred language is Slovenian ----------
 const SL_TEXT = {
   'Budget Camping Trailer Build': 'Prikolica za kampiranje',
@@ -837,33 +859,41 @@ function resize() {
 }
 new ResizeObserver(resize).observe(bay); resize();
 
-// loop: animate lid + door toward their target angles
+// loop: animate lid + door toward their target angles. The first frame snaps to the target pose (no opening animation on load).
+let snap = true;
 const clock = new THREE.Clock();
 const approach = (cur, tgt, step) => Math.abs(tgt - cur) <= step ? tgt : cur + Math.sign(tgt - cur) * step;
 function tick() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  if (reduced) snap = true;
   const lidT = S.roof ? D.lidOpenDeg : 0, doorT = S.door ? D.doorOpenDeg : 0;
-  S.lidA = reduced ? lidT : approach(S.lidA, lidT, 90 * dt);
-  S.doorA = reduced ? doorT : approach(S.doorA, doorT, 220 * dt);
+  S.lidA = snap ? lidT : approach(S.lidA, lidT, 90 * dt);
+  S.doorA = snap ? doorT : approach(S.doorA, doorT, 220 * dt);
   lidPivot.rotation.x = THREE.MathUtils.degToRad(S.lidA);
   doorPivot.rotation.y = THREE.MathUtils.degToRad(S.doorA);
   const legT = S.legs ? 0 : legTravel;
-  S.legA = reduced ? legT : approach(S.legA, legT, 600 * dt);
+  S.legA = snap ? legT : approach(S.legA, legT, 600 * dt);
   legs.forEach(g => { g.position.y = S.legA; });
   const stoveT = S.stove ? D.kitchen.drawerTravel : 0;
-  S.stoveA = reduced ? stoveT : approach(S.stoveA, stoveT, 900 * dt);
+  S.stoveA = snap ? stoveT : approach(S.stoveA, stoveT, 900 * dt);
   stoveDrawerG.position.x = D.kitchen.openSide * S.stoveA;
   const boardT = S.board ? D.kitchen.boardTravel : 0, flapT = S.flap ? 90 : 0;
-  S.boardA = reduced ? boardT : approach(S.boardA, boardT, 900 * dt);
-  S.flapA = reduced ? flapT : approach(S.flapA, flapT, 150 * dt);
+  S.boardA = snap ? boardT : approach(S.boardA, boardT, 900 * dt);
+  S.flapA = snap ? flapT : approach(S.flapA, flapT, 150 * dt);
   boardG.position.x = D.kitchen.openSide * S.boardA;
   flapG.rotation.x = THREE.MathUtils.degToRad(S.flapA);
   const bottleT = S.bottle ? D.kitchen.bottleTravel : 0;
-  S.bottleA = reduced ? bottleT : approach(S.bottleA, bottleT, 900 * dt);
+  S.bottleA = snap ? bottleT : approach(S.bottleA, bottleT, 900 * dt);
   bottleG.position.x = D.kitchen.openSide * S.bottleA;
+  const floorT = S.floor ? D.slide.travel : 0, kitchenT = S.kitchen ? D.kitchen.len : 0, fridgeT = S.fridge ? D.fridge.len : 0;
+  S.floorA = snap ? floorT : approach(S.floorA, floorT, 600 * dt);
+  S.kitchenA = snap ? kitchenT : approach(S.kitchenA, kitchenT, 900 * dt);
+  S.fridgeA = snap ? fridgeT : approach(S.fridgeA, fridgeT, 900 * dt);
+  applyPositions();
   updateStruts();
   controls.update();
   renderer.render(scene, camera);
+  snap = false;
   requestAnimationFrame(tick);
 }
 tick();
