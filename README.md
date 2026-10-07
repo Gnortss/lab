@@ -15,6 +15,7 @@ A collection of small demos, visualizations, calculators and games.
 
 ```sh
 pnpm install
+pnpm dev      # wrangler dev + rebuild on file changes (refresh the browser)
 pnpm build    # -> dist/
 pnpm deploy   # build + wrangler deploy to lab.devsoup.xyz
 ```

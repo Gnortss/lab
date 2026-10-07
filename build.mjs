@@ -9,8 +9,9 @@ const OUT = 'dist';
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const esc = (s = '') => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-rmSync(OUT, { recursive: true, force: true });
-mkdirSync(OUT);
+// empty dist/ rather than delete it: on Windows a running `wrangler dev` holds the folder open
+mkdirSync(OUT, { recursive: true });
+for (const f of readdirSync(OUT)) rmSync(join(OUT, f), { recursive: true, force: true });
 
 const entries = [];
 
