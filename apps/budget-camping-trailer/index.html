@@ -90,6 +90,17 @@ section h2 {
   padding: 7px 0; border-top: 1px solid var(--line);
 }
 .part:last-child { border-bottom: 1px solid var(--line); }
+.phase {
+  font-family: var(--f-display); font-weight: 600; font-size: 13px; padding: 12px 0 6px;
+  background: none; border: 0; color: var(--ink); text-align: left; cursor: pointer; display: flex; align-items: baseline;
+}
+.phase:first-child { padding-top: 0; }
+.phase::before { content: "▾"; width: 14px; flex: none; color: var(--muted); }
+.phase[aria-expanded="false"]::before { content: "▸"; }
+.phase:hover::before { color: var(--accent); }
+.phase small { color: var(--muted); font-family: var(--f-mono); font-weight: 400; font-size: 10.5px; margin-left: 6px; }
+.phasepick { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.phasepick span { margin-right: auto; font-weight: 500; }
 .sw { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
 .nm { min-width: 0; line-height: 1.25; }
 .nm small { display: block; color: var(--muted); font-family: var(--f-mono); font-size: 10.5px; }
@@ -135,7 +146,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     <header>
       <a class="back" href="/">← lab</a>
       <h1>Budget Camping Trailer Build</h1>
-      <p>TPV KT-EU2 · inner 2020 × 1075 × 675 mm</p>
+      <p>TPV KT-EU2 · inner 2100 × 1075 × 675 mm</p>
     </header>
 
     <section>
@@ -175,6 +186,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
           <button type="button" id="b-nowire">Solid all</button>
         </span>
       </h2>
+      <div class="phasepick" id="phasepick"><span>Build up to phase</span></div>
+      <div class="phasepick" id="phasefocus"><span>Focus phase</span></div>
       <div class="parts" id="parts"></div>
     </section>
   </aside>
@@ -198,14 +211,17 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 // ---------- Dimensions (mm). Edit here. ----------
 // Axes: x = left(+)/right(-) in driving direction, y = up, z = forward. z = 0 is the rear opening.
 const D = {
-  inL: 2020, inW: 1075, inH: 675,      // KT-EU2 inner box
+  inL: 2100, inW: 1075, inH: 675,      // KT-EU2 inner box (measured; the spec sheet says 2020)
+  doorClear: 50,                       // the closed door takes this much of the floor length: 2050 usable
   wall: 18,                            // visual wall thickness
   floorY: 520,                         // loading height (top of trailer floor)
   lidThk: 90, lidOpenDeg: 25,
   doorThk: 25, doorOpenDeg: 210,
   axleZ: 1010, wheelR: 273, wheelW: 155, wheelX: 655,
-  runnerH: 30,                         // rails under the sliding floor
-  slide: { len: 1920, w: 1035, thk: 18, travel: 800, frontGap: 20 },  // frontGap = space to front wall; rest is left at the door for the handle
+  slide: { len: 1990, w: 1035, thk: 18, travel: 800, frontGap: 10 },  // frontGap = space to front wall; rest is left at the door for the handle
+  lowerFrame: { thk: 15 },                 // aluminium, bolted through the trailer floor together with the rails
+  rail: { x: 260, len: 2000, w: 20, h: 17.5, blockL: 77.5, blockW: 44, blockH: 30 },  // HGR20 rail + HGH20CA block; blockH = rail bottom to block top
+  upperFrame: { h: 40, tube: 40 },         // aluminium, ties the 4 blocks together, plywood on top
   kitchen: { len: 1200, w: 415, h: 550, stoveLen: 700, bottleLen: 200, bottleTravel: 320, stoveY: 930, drawerY: 110, drawerTravel: 300, boardTravel: 300, flapHingeY: 950, openSide: 1 },
   // left. stoveY = stove standing surface above ground. drawerY = side drawer bottom above kitchen bottom (clears slides).
   // flapHingeY = height above ground of the front table's hinge (= table height when open).
@@ -216,7 +232,10 @@ const D = {
   tent: { len: 1600, w: 1200, h: 400 },    // roof top tent, closed, centred on the lid rails
 };
 const hw = D.inW / 2, topY = D.floorY + D.inH, outHW = hw + D.wall;
-const FT = D.floorY + D.runnerH + D.slide.thk;   // top of sliding floor
+const yLF = D.floorY + D.lowerFrame.thk;          // top of lower frame = rail bottom
+const yUF = yLF + D.rail.blockH;                  // top of the blocks = bottom of upper frame
+const yPly = yUF + D.upperFrame.h;                // bottom of the plywood
+const FT = yPly + D.slide.thk;                    // top of sliding floor
 const slideZ0 = D.inL - D.slide.frontGap - D.slide.len;  // rear edge of sliding floor when pushed in
 
 // ---------- Scene ----------
@@ -277,8 +296,11 @@ defPart('tent', 'Roof top tent', '#d9c7e8', '1600 × 1200 × 400 · closed');
 defPart('struts', 'Gas struts', '#7b848a', '2 per side, A-frame');
 defPart('door', 'Rear door', '#c5dbf0', 'right hinge');
 defPart('legs', 'Support legs', '#8e9ba3', '4 × telescopic, on side walls');
-defPart('runners', 'Slide runners', '#c2c8cd', 'fixed to trailer floor');
-defPart('slider', 'Sliding floor', '#f1d59c', '1920 × 1035 · travel 800');
+defPart('lowerframe', 'Lower frame', '#c2c8cd', '15 mm aluminium · bolted through the floor · shape TBD');
+defPart('rails', 'Linear rails', '#7f8a91', '2 × HGR20 2000 mm · 2 HGH20CA blocks each');
+defPart('upperframe', 'Upper frame', '#b4c3cc', '40 mm aluminium · ties the 4 blocks · shape TBD');
+defPart('slider', 'Sliding floor', '#f1d59c', '1990 × 1035 plywood · travel 800');
+defPart('lock', 'Locking handle', '#d0574b', 'handle, rod, side pins · L brackets, open + closed holes');
 defPart('kitchen', 'Kitchen drawer', '#b3dfc2', '1200 × 415 × 550 · stove 700, bottles 200, box 300 · left');
 defPart('stove', 'Camping stove', '#6b7378', '2-burner · 550 × 300');
 defPart('fridge', 'Fridge slide', '#f2bdbd', 'tray + chest fridge · 800 × 550 × 550 · right');
@@ -287,7 +309,7 @@ defPart('tank', 'Water system', '#a3daee', 'tank, pump & plumbing · 1035 × 250
 
 // ---------- Chassis, wheels, fenders ----------
 for (const s of [1, -1]) {
-  box('chassis', scene, s * 350 - 30, s * 350 + 30, D.floorY - 80, D.floorY - 30, -40, D.inL + 40);
+  box('chassis', scene, s * 350 - 30, s * 350 + 30, D.floorY - 80, D.floorY - 30, 300, D.inL + 40);   // frame stops ~300 mm short of the rear
   // drawbar arm: from (±350, inL+40) to (±40, 2850)
   const ax = s * 350, az = D.inL + 40, bx = s * 40, bz = 2850;
   const len = Math.hypot(bx - ax, bz - az);
@@ -387,12 +409,54 @@ for (const s of [1, -1]) for (const z of [190, D.inL - 170]) {
   legs.push(g);
 }
 
-// ---------- Runners + sliding floor ----------
-for (const s of [1, -1]) box('runners', scene, s * 380 - 30, s * 380 + 30, D.floorY, D.floorY + D.runnerH, slideZ0, slideZ0 + D.slide.len);
+// ---------- Sliding floor on 2 HGR20 linear rails ----------
+// Lower frame (fixed) carries the rails. Each rail has 2 blocks: the front one as far forward as the rail
+// allows, the rear one 800 mm from the rail's rear end so it is still fully on the rail when the floor is out.
+// The upper frame ties the 4 blocks together and runs to the floor's rear edge; the plywood sits on it.
+// Frame shapes are placeholders: longitudinal members under the rails plus cross members.
 const floorG = new THREE.Group(); scene.add(floorG);
-const sw = D.slide.w / 2;
-box('slider', floorG, -sw, sw, D.floorY + D.runnerH, FT, 0, D.slide.len);
-box('slider', floorG, -110, 110, D.floorY + D.runnerH - 4, FT - 2, -30, 0, { color: '#5b646a' });   // pull handle on the floor edge
+const sw = D.slide.w / 2, RL = D.rail, UT = D.upperFrame.tube;
+const railZ1 = D.inL - D.slide.frontGap, railZ0 = railZ1 - RL.len;   // rails against the front wall
+const blockZ = [railZ1 - RL.blockL / 2, railZ0 + RL.blockL / 2 + D.slide.travel].map(z => z - slideZ0);  // front, rear (floor-local)
+const lockZ = blockZ[1] + 90, lockY = (yUF + yPly) / 2;   // lock box just in front of the rear block cross member
+const BRK = { gap: 30, t: 5, foot: 28 };                // L bracket: vertical leg outboard of the upper frame
+for (const s of [1, -1]) {
+  const xr = s * RL.x;
+  box('lowerframe', scene, s * (RL.x - 40), s * (RL.x + 60), D.floorY, yLF, railZ0, railZ1);          // flat bar under the rail
+  box('rails', scene, xr - RL.w / 2, xr + RL.w / 2, yLF, yLF + RL.h, railZ0, railZ1);                 // rail
+  for (const bz of blockZ)
+    box('rails', floorG, xr - RL.blockW / 2, xr + RL.blockW / 2, yLF + 5, yUF, bz - RL.blockL / 2, bz + RL.blockL / 2, { color: '#4f585e' });
+  box('upperframe', floorG, xr - UT / 2, xr + UT / 2, yUF, yPly, 0, D.slide.len);                     // tube over the blocks
+}
+for (const z of [railZ0, D.inL / 2 - 30, railZ1 - 60])
+  box('lowerframe', scene, -(RL.x - 40), RL.x - 40, D.floorY, yLF, z, z + 60);                        // cross bars
+for (const z of [0, blockZ[1] - UT / 2, blockZ[0] - UT / 2, D.slide.len - UT])
+  box('upperframe', floorG, -(RL.x - UT / 2), RL.x - UT / 2, yUF, yPly, z, z + UT);                   // cross tubes
+box('slider', floorG, -sw, sw, yPly, FT, 0, D.slide.len);
+
+// Locking handle (Accuride DR-HAND-3 style): handle on the rear cross tube, centre rod forward to the lock box,
+// which pushes 2 pins out sideways through the frame tubes into holes in the L brackets (closed + open).
+{
+  const k = 'lock', y = lockY;
+  box(k, floorG, -210, 210, y - 14, y + 14, -42, -28, { color: '#2b2f33' });                          // grip
+  for (const sx of [-1, 1]) box(k, floorG, sx * 210, sx * 185, y - 14, y + 14, -28, 0, { color: '#2b2f33' });   // standoffs
+  box(k, floorG, -14, 14, y - 10, y + 10, -50, -28);                                                 // release button
+  addMesh(k, new THREE.CylinderGeometry(4, 4, lockZ, 10).rotateX(Math.PI / 2), floorG, [0, y, lockZ / 2], { noEdges: true, color: '#c9d0d5' });   // rod
+  box(k, floorG, -200, 200, y - 12, y + 12, lockZ - 15, lockZ + 15, { color: '#c9d0d5' });           // lock box
+  for (const s of [1, -1]) {
+    const pinLen = RL.x + BRK.gap + BRK.t + 8 - 200;
+    addMesh(k, new THREE.CylinderGeometry(4, 4, pinLen, 10).rotateZ(Math.PI / 2), floorG, [s * (200 + pinLen / 2), y, lockZ], { noEdges: true, color: '#c9d0d5' });
+  }
+  // L brackets on the lower frame bars, holes where the pins sit closed and 800 mm out
+  const zClosed = slideZ0 + lockZ, zOpen = zClosed - D.slide.travel;
+  for (const s of [1, -1]) {
+    const x0 = RL.x + BRK.gap;
+    box(k, scene, s * x0, s * (x0 + BRK.foot), yLF, yLF + BRK.t, zOpen - 40, zClosed + 40, { color: '#aab4bb' });   // foot
+    box(k, scene, s * x0, s * (x0 + BRK.t), yLF, y + 14, zOpen - 40, zClosed + 40, { color: '#aab4bb' });           // upright
+    for (const zh of [zOpen, zClosed])
+      box(k, scene, s * (x0 - 1), s * (x0 + BRK.t + 1), y - 5, y + 5, zh - 5, zh + 5, { color: '#2b2f33', noEdges: true });   // hole
+  }
+}
 
 // Drawers: local z = 0 is the outer end, flush with the floor's rear edge when closed.
 const DARK = '#3a3f44', HANDLE = '#5b646a';
@@ -586,9 +650,30 @@ S.legs = tLegs.checked;
 S.lidA = S.roof ? D.lidOpenDeg : 0; S.doorA = S.door ? D.doorOpenDeg : 0;  // start in final pose, no opening animation
 S.legA = S.legs ? 0 : legTravel;
 
-// parts list
+// parts list, grouped by build phase
+const PHASES = [
+  ['Phase 0', 'trailer + roof top tent', ['chassis', 'body', 'tfloor', 'lid', 'tent', 'struts', 'door', 'legs']],
+  ['Phase 1', 'sliding floor', ['lowerframe', 'rails', 'upperframe', 'slider', 'lock']],
+  ['Phase 2', 'sliding drawers', ['kitchen', 'stove', 'fridge', 'slides']],
+  ['Phase 3', 'water system box', ['tank']],
+];
 const list = document.getElementById('parts');
-order.forEach(k => {
+PHASES.forEach(([title, note, keys]) => {
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'phase';
+  head.setAttribute('aria-expanded', 'false');
+  head.innerHTML = `${title}<small>${note}</small>`;
+  const rows = document.createElement('div');
+  rows.hidden = true;
+  head.addEventListener('click', () => {   // collapse / expand the phase's rows in the list
+    rows.hidden = !rows.hidden;
+    head.setAttribute('aria-expanded', String(!rows.hidden));
+  });
+  list.append(head, rows);
+  keys.forEach(k => addPartRow(k, rows));
+});
+function addPartRow(k, list) {
   const p = parts[k];
   const row = document.createElement('div');
   row.className = 'part';
@@ -601,13 +686,49 @@ order.forEach(k => {
   const w = row.querySelector('#w-' + k), v = row.querySelector('#v-' + k);
   const sync = () => { p.wire = w.checked; p.show = v.checked; row.classList.toggle('off', !p.show); applyPart(p); };
   w.addEventListener('change', sync); v.addEventListener('change', sync); sync();
+}
+// build phase picker: shows every part up to and including the chosen phase
+const pick = document.getElementById('phasepick');
+function showPhases(n) {
+  PHASES.forEach(([, , keys], i) => keys.forEach(k => {
+    const v = document.getElementById('v-' + k);
+    if (v.checked !== (i <= n)) { v.checked = i <= n; v.dispatchEvent(new Event('change')); }
+  }));
+}
+PHASES.forEach((_, i) => {
+  const c = document.createElement('label');
+  c.className = 'chip';
+  c.innerHTML = `${i}<input type="radio" name="phase" value="${i}"${i === PHASES.length - 1 ? ' checked' : ''}>`;
+  c.querySelector('input').addEventListener('change', () => showPhases(i));
+  pick.appendChild(c);
 });
-document.getElementById('b-allshow').addEventListener('click', () => order.forEach(k => {
-  const v = document.getElementById('v-' + k); if (!v.checked) { v.checked = true; v.dispatchEvent(new Event('change')); }
-}));
-document.getElementById('b-nowire').addEventListener('click', () => order.forEach(k => {
-  const w = document.getElementById('w-' + k); if (w.checked) { w.checked = false; w.dispatchEvent(new Event('change')); }
-}));
+// focus picker: the chosen phase solid, everything else as wireframe (-1 = all solid).
+// Keeps the build phase, raising it only when the focused phase is beyond it.
+const focusPick = document.getElementById('phasefocus');
+function setChecked(id, on) {
+  const el = document.getElementById(id);
+  if (el.checked !== on) { el.checked = on; el.dispatchEvent(new Event('change')); }
+}
+function focusPhase(n) {
+  const built = +pick.querySelector('input:checked').value;
+  if (n > built) { pick.querySelector(`input[value="${n}"]`).checked = true; showPhases(n); }
+  PHASES.forEach(([, , keys], i) => keys.forEach(k => setChecked('w-' + k, n >= 0 && i !== n)));
+}
+[-1, ...PHASES.keys()].forEach(i => {
+  const c = document.createElement('label');
+  c.className = 'chip';
+  c.innerHTML = `${i < 0 ? 'All' : i}<input type="radio" name="focus" value="${i}"${i < 0 ? ' checked' : ''}>`;
+  c.querySelector('input').addEventListener('change', () => focusPhase(i));
+  focusPick.appendChild(c);
+});
+document.getElementById('b-allshow').addEventListener('click', () => {
+  showPhases(PHASES.length - 1);
+  pick.querySelector(`input[value="${PHASES.length - 1}"]`).checked = true;
+});
+document.getElementById('b-nowire').addEventListener('click', () => {
+  order.forEach(k => setChecked('w-' + k, false));
+  focusPick.querySelector('input[value="-1"]').checked = true;
+});
 
 // camera views
 const VIEWS = {
@@ -628,7 +749,7 @@ setView('rear');
 // ---------- Slovenian UI when the browser's preferred language is Slovenian ----------
 const SL_TEXT = {
   'Budget Camping Trailer Build': 'Prikolica za kampiranje',
-  'TPV KT-EU2 · inner 2020 × 1075 × 675 mm': 'TPV KT-EU2 · notranjost 2020 × 1075 × 675 mm',
+  'TPV KT-EU2 · inner 2100 × 1075 × 675 mm': 'TPV KT-EU2 · notranjost 2100 × 1075 × 675 mm',
   'Movement': 'Premikanje',
   'Sliding floor': 'Izvlečno dno',
   'Kitchen drawer': 'Kuhinjski predal',
@@ -642,6 +763,14 @@ const SL_TEXT = {
   'Bottle drawer': 'Predal za steklenice',
   'Front table': 'Sprednja mizica',
   'Parts': 'Deli',
+  'Build up to phase': 'Gradnja do faze',
+  'Focus phase': 'Poudari fazo',
+  'All': 'Vse',
+  'Phase 0': 'Faza 0', 'Phase 1': 'Faza 1', 'Phase 2': 'Faza 2', 'Phase 3': 'Faza 3',
+  'trailer + roof top tent': 'prikolica + strešni šotor',
+  'sliding floor': 'izvlečno dno',
+  'sliding drawers': 'izvlečni predali',
+  'water system box': 'škatla vodnega sistema',
   'Show all': 'Prikaži vse',
   'Solid all': 'Vse polno',
   'Wire': 'Mreža',
@@ -667,9 +796,15 @@ const SL_TEXT = {
   'right hinge': 'tečaj desno',
   'Support legs': 'Podporne noge',
   '4 × telescopic, on side walls': '4 × teleskopske, na stranskih stenah',
-  'Slide runners': 'Vodila dna',
-  'fixed to trailer floor': 'pritrjena na dno prikolice',
-  '1920 × 1035 · travel 800': '1920 × 1035 · hod 800',
+  'Lower frame': 'Spodnji okvir',
+  '15 mm aluminium · bolted through the floor · shape TBD': '15 mm aluminij · privijačen skozi dno · oblika še odprta',
+  'Linear rails': 'Linearna vodila',
+  '2 × HGR20 2000 mm · 2 HGH20CA blocks each': '2 × HGR20 2000 mm · po 2 vozička HGH20CA',
+  'Upper frame': 'Zgornji okvir',
+  '40 mm aluminium · ties the 4 blocks · shape TBD': '40 mm aluminij · povezuje 4 vozičke · oblika še odprta',
+  'Locking handle': 'Ročaj z zaklepom',
+  'handle, rod, side pins · L brackets, open + closed holes': 'ročaj, palica, stranska zatiča · L nosilca z luknjama za odprto + zaprto',
+  '1990 × 1035 plywood · travel 800': '1990 × 1035 vezana plošča · hod 800',
   '1200 × 415 × 550 · stove 700, bottles 200, box 300 · left': '1200 × 415 × 550 · kuhalnik 700, steklenice 200, škatla 300 · levo',
   'Camping stove': 'Kuhalnik',
   '2-burner · 550 × 300': '2 gorilnika · 550 × 300',
