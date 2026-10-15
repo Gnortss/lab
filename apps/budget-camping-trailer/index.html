@@ -201,11 +201,13 @@ const D = {
   doorClear: 50,                       // the closed door takes this much of the floor length: 2050 usable
   wall: 18,                            // visual wall thickness
   floorY: 520,                         // loading height (top of trailer floor)
+  floorThk: 18,                        // trailer floor plywood, 12 or 18 (not measured yet)
   lidThk: 90, lidOpenDeg: 25,
   doorThk: 25, doorOpenDeg: 210,
   axleZ: 1010, wheelR: 273, wheelW: 155, wheelX: 655,
   slide: { len: 1990, w: 1035, thk: 18, travel: 800, frontGap: 10 },  // frontGap = space to front wall; rest is left at the door for the handle
   lowerFrame: { thk: 15 },                 // aluminium, bolted through the trailer floor together with the rails
+  floorTube: 30,                           // 30 × 30 aluminium square tube under the trailer floor, below each rail
   rail: { x: 260, len: 2000, w: 20, h: 17.5, blockL: 77.5, blockW: 44, blockH: 30 },  // HGR20 rail + HGH20CA block; blockH = rail bottom to block top
   upperFrame: { h: 40, tube: 40 },         // aluminium, ties the 4 blocks together, plywood on top
   kitchen: { len: 1200, w: 415, h: 550, stoveLen: 700, bottleLen: 200, bottleTravel: 320, stoveY: 930, drawerY: 110, drawerTravel: 300, boardTravel: 300, flapHingeY: 950, openSide: 1 },
@@ -276,13 +278,14 @@ const shade = (hex, f) => '#' + new THREE.Color(hex).multiplyScalar(f).getHexStr
 
 defPart('chassis', 'Chassis & wheels', '#9aa5ad', 'frame, drawbar, axle, 13 in wheels, fenders');
 defPart('body', 'Body walls', '#b7d2ea', 'steel sides, front');
-defPart('tfloor', 'Trailer floor', '#e4cfa8', '9 mm plywood');
+defPart('tfloor', 'Trailer floor', '#e4cfa8', '18 mm plywood (or 12)');
 defPart('lid', 'Roof lid', '#9dbedb', 'front hinge, 25°');
 defPart('tent', 'Roof top tent', '#d9c7e8', '1600 × 1200 × 400 · closed');
 defPart('struts', 'Gas struts', '#7b848a', '2 per side, A-frame');
 defPart('door', 'Rear door', '#c5dbf0', 'right hinge');
 defPart('legs', 'Support legs', '#8e9ba3', '4 × telescopic, on side walls');
-defPart('lowerframe', 'Lower frame', '#c2c8cd', '15 mm aluminium · bolted through the floor · shape TBD');
+defPart('floortube', 'Floor tubes', '#8fa0ab', '2 × 30 × 30 aluminium under the floor · rails bolt through into them');
+defPart('lowerframe', 'Lower frame', '#c2c8cd', '15 mm aluminium plate under each rail · bolted through the floor');
 defPart('rails', 'Linear rails', '#7f8a91', '2 × HGR20 2000 mm · 2 HGH20CA blocks each');
 defPart('upperframe', 'Upper frame', '#b4c3cc', '40 mm aluminium · ties the 4 blocks · shape TBD');
 defPart('slider', 'Sliding floor', '#f1d59c', '1990 × 1035 plywood · travel 800');
@@ -295,12 +298,12 @@ defPart('tank', 'Water system', '#a3daee', 'tank, pump & plumbing · 1035 × 250
 
 // ---------- Chassis, wheels, fenders ----------
 for (const s of [1, -1]) {
-  box('chassis', scene, s * 350 - 30, s * 350 + 30, D.floorY - 80, D.floorY - 30, 300, D.inL + 40);   // frame stops ~300 mm short of the rear
+  box('chassis', scene, s * 350 - 30, s * 350 + 30, D.floorY - D.floorThk - 50, D.floorY - D.floorThk, 300, D.inL + 40);   // frame stops ~300 mm short of the rear
   // drawbar arm: from (±350, inL+40) to (±40, 2850)
   const ax = s * 350, az = D.inL + 40, bx = s * 40, bz = 2850;
   const len = Math.hypot(bx - ax, bz - az);
   addMesh('chassis', new THREE.BoxGeometry(60, 50, len), scene,
-    [(ax + bx) / 2, D.floorY - 55, (az + bz) / 2], { rotY: Math.atan2(bx - ax, bz - az) });
+    [(ax + bx) / 2, D.floorY - D.floorThk - 25, (az + bz) / 2], { rotY: Math.atan2(bx - ax, bz - az) });
   addMesh('chassis', new THREE.CylinderGeometry(D.wheelR, D.wheelR, D.wheelW, 36).rotateZ(Math.PI / 2),
     scene, [s * D.wheelX, D.wheelR, D.axleZ], { thresh: 20, color: '#4c5357' });
   addMesh('chassis', new THREE.CylinderGeometry(305, 305, 205, 36, 1, true, 0, Math.PI).rotateZ(Math.PI / 2),
@@ -314,7 +317,7 @@ const wallY0 = D.floorY - 30;
 box('body', scene, hw, outHW, wallY0, topY, 0, D.inL + D.wall);
 box('body', scene, -outHW, -hw, wallY0, topY, 0, D.inL + D.wall);
 box('body', scene, -hw, hw, wallY0, topY, D.inL, D.inL + D.wall);
-box('tfloor', scene, -hw, hw, wallY0, D.floorY, 0, D.inL);
+box('tfloor', scene, -hw, hw, D.floorY - D.floorThk, D.floorY, 0, D.inL);
 
 // ---------- Roof lid (pivot on front top edge) ----------
 const lidPivot = new THREE.Group();
@@ -399,7 +402,8 @@ for (const s of [1, -1]) for (const z of [190, D.inL - 170]) {
 // Lower frame (fixed) carries the rails. Each rail has 2 blocks: the front one as far forward as the rail
 // allows, the rear one 800 mm from the rail's rear end so it is still fully on the rail when the floor is out.
 // The upper frame ties the 4 blocks together and runs to the floor's rear edge; the plywood sits on it.
-// Frame shapes are placeholders: longitudinal members under the rails plus cross members.
+// Lower frame is just a plate under each rail; the rail bolts through plate and trailer floor into a
+// 30 × 30 square tube under the floor. Upper frame shape is a placeholder.
 const floorG = new THREE.Group(); scene.add(floorG);
 const sw = D.slide.w / 2, RL = D.rail, UT = D.upperFrame.tube;
 const railZ1 = D.inL - D.slide.frontGap, railZ0 = railZ1 - RL.len;   // rails against the front wall
@@ -408,14 +412,13 @@ const lockZ = blockZ[1] + 90, lockY = (yUF + yPly) / 2;   // lock box just in fr
 const BRK = { gap: 30, t: 5, foot: 28 };                // L bracket: vertical leg outboard of the upper frame
 for (const s of [1, -1]) {
   const xr = s * RL.x;
-  box('lowerframe', scene, s * (RL.x - 40), s * (RL.x + 60), D.floorY, yLF, railZ0, railZ1);          // flat bar under the rail
+  box('floortube', scene, xr - D.floorTube / 2, xr + D.floorTube / 2, D.floorY - D.floorThk - D.floorTube, D.floorY - D.floorThk, railZ0, railZ1);   // tube under the floor
+  box('lowerframe', scene, s * (RL.x - 40), s * (RL.x + 60), D.floorY, yLF, railZ0, railZ1);          // plate under the rail
   box('rails', scene, xr - RL.w / 2, xr + RL.w / 2, yLF, yLF + RL.h, railZ0, railZ1);                 // rail
   for (const bz of blockZ)
     box('rails', floorG, xr - RL.blockW / 2, xr + RL.blockW / 2, yLF + 5, yUF, bz - RL.blockL / 2, bz + RL.blockL / 2, { color: '#4f585e' });
   box('upperframe', floorG, xr - UT / 2, xr + UT / 2, yUF, yPly, 0, D.slide.len);                     // tube over the blocks
 }
-for (const z of [railZ0, D.inL / 2 - 30, railZ1 - 60])
-  box('lowerframe', scene, -(RL.x - 40), RL.x - 40, D.floorY, yLF, z, z + 60);                        // cross bars
 for (const z of [0, blockZ[1] - UT / 2, blockZ[0] - UT / 2, D.slide.len - UT])
   box('upperframe', floorG, -(RL.x - UT / 2), RL.x - UT / 2, yUF, yPly, z, z + UT);                   // cross tubes
 box('slider', floorG, -sw, sw, yPly, FT, 0, D.slide.len);
@@ -433,7 +436,7 @@ box('slider', floorG, -sw, sw, yPly, FT, 0, D.slide.len);
     const pinLen = RL.x + BRK.gap + BRK.t + 8 - 200;
     addMesh(k, new THREE.CylinderGeometry(4, 4, pinLen, 10).rotateZ(Math.PI / 2), floorG, [s * (200 + pinLen / 2), y, lockZ], { noEdges: true, color: '#c9d0d5' });
   }
-  // L brackets on the lower frame bars, holes where the pins sit closed and 800 mm out
+  // L brackets on the lower frame plates, holes where the pins sit closed and 800 mm out
   const zClosed = slideZ0 + lockZ, zOpen = zClosed - D.slide.travel;
   for (const s of [1, -1]) {
     const x0 = RL.x + BRK.gap;
@@ -629,7 +632,7 @@ S.legs = tLegs.checked;
 // parts list, grouped by build phase
 const PHASES = [
   ['Phase 0', 'trailer + roof top tent', ['chassis', 'body', 'tfloor', 'lid', 'tent', 'struts', 'door', 'legs']],
-  ['Phase 1', 'sliding floor', ['lowerframe', 'rails', 'upperframe', 'slider', 'lock']],
+  ['Phase 1', 'sliding floor', ['floortube', 'lowerframe', 'rails', 'upperframe', 'slider', 'lock']],
   ['Phase 2', 'sliding drawers', ['kitchen', 'stove', 'fridge', 'slides']],
   ['Phase 3', 'water system box', ['tank']],
 ];
@@ -807,7 +810,7 @@ const SL_TEXT = {
   'Body walls': 'Stene karoserije',
   'steel sides, front': 'jeklene stranice, sprednja stena',
   'Trailer floor': 'Dno prikolice',
-  '9 mm plywood': '9 mm vezana plošča',
+  '18 mm plywood (or 12)': '18 mm vezana plošča (ali 12)',
   'Roof lid': 'Pokrov',
   'front hinge, 25°': 'tečaj spredaj, 25°',
   'Roof top tent': 'Strešni šotor',
@@ -819,7 +822,9 @@ const SL_TEXT = {
   'Support legs': 'Podporne noge',
   '4 × telescopic, on side walls': '4 × teleskopske, na stranskih stenah',
   'Lower frame': 'Spodnji okvir',
-  '15 mm aluminium · bolted through the floor · shape TBD': '15 mm aluminij · privijačen skozi dno · oblika še odprta',
+  'Floor tubes': 'Cevi pod dnom',
+  '2 × 30 × 30 aluminium under the floor · rails bolt through into them': '2 × 30 × 30 aluminij pod dnom · vodila privijačena skozi dno vanje',
+  '15 mm aluminium plate under each rail · bolted through the floor': '15 mm aluminijasta plošča pod vsakim vodilom · privijačena skozi dno',
   'Linear rails': 'Linearna vodila',
   '2 × HGR20 2000 mm · 2 HGH20CA blocks each': '2 × HGR20 2000 mm · po 2 vozička HGH20CA',
   'Upper frame': 'Zgornji okvir',
